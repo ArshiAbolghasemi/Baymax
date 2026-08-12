@@ -14,7 +14,7 @@ services:
       - "--served-model-name=medgemma-4b"
       - "--dtype=bfloat16"
       - "--max-model-len=32768"
-      - "--gpu-memory-utilization=0.80"
+      - "--gpu-memory-utilization=0.60"
       - "--max-num-seqs=64"
       - "--host=0.0.0.0"
       - "--port=8000"
