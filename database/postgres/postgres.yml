@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB are read straight from the
+    # env file by the image's entrypoint — no ${...} interpolation needed, so
+    # this works no matter which directory you run `docker compose` from.
+    env_file:
+      - ../../.env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    shm_size: 256mb
+    healthcheck:
+      # $$ escapes the compose-level interpolation: the container's shell expands these.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: postgres_data

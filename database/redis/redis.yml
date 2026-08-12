@@ -1,0 +1,35 @@
+services:
+  redis:
+    image: redis:8-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    env_file:
+      - ../../.env
+    # Wrapped in sh -c so REDIS_PASSWORD is expanded by the container at runtime.
+    # $$ escapes compose's own interpolation, keeping this independent of which
+    # directory you run `docker compose` from.
+    command:
+      - "sh"
+      - "-c"
+      - >
+        exec redis-server
+        --requirepass "$$REDIS_PASSWORD"
+        --appendonly yes
+        --appendfsync everysec
+        --save 900 1
+        --save 300 10
+        --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    name: redis_data
