@@ -8,6 +8,8 @@ services:
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
       - HF_HOME=/root/.cache/huggingface
+    env_file:
+      - ../../.env
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     command:
