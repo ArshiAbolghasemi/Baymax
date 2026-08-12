@@ -2,7 +2,6 @@ services:
   medgemma-4b:
     image: vllm/vllm-openai:latest
     container_name: medgemma-4b
-    runtime: nvidia
     ipc: host
     ports:
       - "8000:8000"
