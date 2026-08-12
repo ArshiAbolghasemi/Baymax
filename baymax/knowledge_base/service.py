@@ -12,9 +12,9 @@ from baymax.config import get_config
 from baymax.knowledge_base import repository as repo
 from baymax.knowledge_base.models import AnswerQuestion
 from baymax.knowledge_base.schemas import (
-    KnowledgeBaseEntryCreate,
-    KnowledgeBaseEntryStatus,
     PairRead,
+    QACreate,
+    QAStatus,
     QuestionRead,
 )
 
@@ -39,15 +39,15 @@ def build_pair_text(question: str, answer: str) -> str:
     return f"question: {question}\nanswer: {answer}"
 
 
-def store_entry(
-    session: Session, payload: KnowledgeBaseEntryCreate
+def store_qa(
+    session: Session, payload: QACreate
 ) -> tuple[uuid.UUID, list[QuestionRead], list[PairRead]]:
     """Persist the answer, its questions and the join rows.
 
     Returns the uids the caller needs; the pairs come back un-indexed
     (``point_uid`` is NULL) because Qdrant is written by the Celery task.
     """
-    with log_duration(logger, "store entry", questions=len(payload.questions)):
+    with log_duration(logger, "store qa", questions=len(payload.questions)):
         answer = repo.create_answer(session, payload.answer)
         questions = repo.get_or_create_questions(session, payload.questions)
         pairs = repo.link_questions_to_answer(session, answer, questions)
@@ -65,7 +65,7 @@ def store_entry(
     )
 
 
-def index_entry(
+def index_qa(
     session: Session,
     answer_uid: uuid.UUID,
     *,
@@ -116,7 +116,7 @@ def index_entry(
     return len(points)
 
 
-def get_entry_status(session: Session, answer_uid: uuid.UUID) -> KnowledgeBaseEntryStatus:
+def get_qa_status(session: Session, answer_uid: uuid.UUID) -> QAStatus:
     answer = repo.get_answer(session, answer_uid)
     if answer is None:
         logger.info("answer uid=%s not found", answer_uid)
@@ -127,7 +127,7 @@ def get_entry_status(session: Session, answer_uid: uuid.UUID) -> KnowledgeBaseEn
     indexed = sum(1 for pair in pairs if pair.is_indexed)
     logger.debug("answer uid=%s indexed=%d/%d", answer_uid, indexed, len(pairs))
 
-    return KnowledgeBaseEntryStatus(
+    return QAStatus(
         answer_uid=answer.uid,
         answer=answer.content,
         total_pairs=len(pairs),

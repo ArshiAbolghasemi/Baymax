@@ -29,7 +29,7 @@ _PAIR_UID_EXAMPLE = "b7e4d2a1-9c3f-4e5b-8a6d-1f2e3c4b5a60"
 _POINT_UID_EXAMPLE = "d41f8c2b-5e7a-5b3c-9d1e-6f8a2b4c7d90"
 
 
-class KnowledgeBaseEntryCreate(BaseModel):
+class QACreate(BaseModel):
     """One answer plus every question it is meant to satisfy."""
 
     model_config = ConfigDict(
@@ -115,7 +115,7 @@ class PairRead(BaseModel):
     )
 
 
-class KnowledgeBaseEntryRead(BaseModel):
+class QARead(BaseModel):
     """Returned by the create endpoint, before indexing has run."""
 
     model_config = ConfigDict(
@@ -145,7 +145,7 @@ class KnowledgeBaseEntryRead(BaseModel):
     task_id: str = Field(description="Celery task id for the queued indexing job.")
 
 
-class KnowledgeBaseEntryStatus(BaseModel):
+class QAStatus(BaseModel):
     """Indexing progress for a stored entry."""
 
     model_config = ConfigDict(

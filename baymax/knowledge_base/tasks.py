@@ -27,16 +27,14 @@ _celery_config = get_config().celery
 # default app (and its default AMQP broker) instead of our Redis one.
 @celery_app.task(
     bind=True,
-    name="baymax.knowledge_base.index_entry",
+    name="baymax.knowledge_base.index_qa",
     autoretry_for=(Exception,),
     retry_backoff=_celery_config.task_retry_backoff,
     retry_backoff_max=_celery_config.task_retry_backoff_max,
     retry_jitter=True,
     max_retries=_celery_config.task_max_retries,
 )
-def index_knowledge_base_entry(
-    self: Task, answer_uid: str, correlation_id: str | None = None
-) -> dict[str, object]:
+def index_qa(self: Task, answer_uid: str, correlation_id: str | None = None) -> dict[str, object]:
     """Embed an answer's pending question/answer pairs and upsert them to Qdrant.
 
     ``correlation_id`` is passed by the API so the task's log lines can be
@@ -55,10 +53,10 @@ def index_knowledge_base_entry(
         vector_store.ensure_collection()
 
         with (
-            log_duration(logger, "index entry", answer_uid=answer_uid),
+            log_duration(logger, "index qa", answer_uid=answer_uid),
             session_scope() as session,
         ):
-            indexed = service.index_entry(
+            indexed = service.index_qa(
                 session,
                 uuid.UUID(answer_uid),
                 embedding_client=get_embedding_client(),

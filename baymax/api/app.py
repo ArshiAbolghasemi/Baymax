@@ -24,10 +24,11 @@ logger = get_logger(__name__)
 # Section blurbs shown above each group of endpoints in Swagger UI.
 OPENAPI_TAGS = [
     {
-        "name": "knowledge-base",
+        "name": "knowledge-base: qa",
         "description": (
-            "Store answers with the questions they satisfy, and track how far "
-            "vector indexing has progressed."
+            "Question/answer entries: store answers with the questions they "
+            "satisfy, and track how far vector indexing has progressed. Other "
+            "source types (documents, guidelines) will appear as sibling tags."
         ),
     },
     {
