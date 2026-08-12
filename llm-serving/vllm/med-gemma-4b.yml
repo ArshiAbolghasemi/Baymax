@@ -6,12 +6,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
-      - HF_HOME=/root/.cache/huggingface
-    env_file:
-      - ../../.env
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
     volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
+      - hf-cache:/root/.cache/huggingface
     command:
       - "--model=google/medgemma-4b-it"
       - "--served-model-name=medgemma-4b"
@@ -35,3 +32,6 @@ services:
       retries: 20
       start_period: 300s
     restart: unless-stopped
+
+volumes:
+  hf-cache:
