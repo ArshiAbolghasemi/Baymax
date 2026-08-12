@@ -31,5 +31,7 @@ services:
 volumes:
   qdrant_storage:
     name: qdrant_storage
+    external: true
   qdrant_snapshots:
     name: qdrant_snapshots
+    external: true
