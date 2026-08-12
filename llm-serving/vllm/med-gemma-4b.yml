@@ -5,8 +5,6 @@ services:
     ipc: host
     ports:
       - "8000:8000"
-    environment:
-      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
     env_file:
       - ../../.env
     volumes:
