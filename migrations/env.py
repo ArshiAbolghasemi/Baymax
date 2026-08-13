@@ -10,12 +10,13 @@ Two things differ from the generated default:
 from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
+# Imported for the side effect of registering tables on Base.metadata — without
+# it autogenerate would think every table should be dropped.
+import baymax.chat.models
 from baymax.common.logging import configure_logging, get_logger
 from baymax.config import get_config
 from baymax.db.base import Base
 
-# Imported for the side effect of registering tables on Base.metadata — without
-# it autogenerate would think every table should be dropped.
 import baymax.knowledge_base.models  # noqa: F401  isort:skip
 
 configure_logging()

@@ -78,3 +78,39 @@ class QdrantConfig(Dynaconf):
     @property
     def distance(self) -> str:
         return str(self.get("QDRANT_DISTANCE", "Cosine"))
+
+
+class LLMConfig(Dynaconf):
+    """Generative model endpoint, OpenAI-compatible (vLLM serving MedGemma).
+
+    Separate from :class:`EmbeddingConfig`: the two are different models, often
+    on different ports, and are scaled independently.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(**dynaconf_kwargs())
+
+    @property
+    def base_url(self) -> str:
+        return str(self.get("LLM_BASE_URL", "http://localhost:8000/v1"))
+
+    @property
+    def model(self) -> str:
+        return str(self.get("LLM_MODEL", "medgemma-4b"))
+
+    @property
+    def api_key(self) -> str:
+        """vLLM ignores this, but the OpenAI client refuses to start without one."""
+        return str(self.get("LLM_API_KEY", "not-needed"))
+
+    @property
+    def timeout(self) -> float:
+        return float(self.get("LLM_TIMEOUT", 300))
+
+    @property
+    def temperature(self) -> float:
+        return float(self.get("LLM_TEMPERATURE", 0.7))
+
+    @property
+    def max_tokens(self) -> int:
+        return int(self.get("LLM_MAX_TOKENS", 1024))

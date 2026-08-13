@@ -13,9 +13,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from baymax.api.middleware import CorrelationIdMiddleware
+from baymax.api.openapi import build_openapi
 from baymax.api.schemas import HealthResponse
+from baymax.chat.router import router as chat_router
 from baymax.common.logging import configure_logging, get_logger
 from baymax.config import get_config
+from baymax.db.session import dispose_async_engine
 from baymax.knowledge_base.router import router as knowledge_base_router
 from baymax.knowledge_base.store import get_store
 
@@ -29,6 +32,13 @@ OPENAPI_TAGS = [
             "Question/answer entries: store answers with the questions they "
             "satisfy, and track how far vector indexing has progressed. Other "
             "source types (documents, guidelines) will appear as sibling tags."
+        ),
+    },
+    {
+        "name": "chat",
+        "description": (
+            "Streaming conversations. Replies are pushed over the WebSocket at "
+            "/ws, not returned by the HTTP call that triggers them."
         ),
     },
     {
@@ -56,6 +66,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    await dispose_async_engine()
     logger.info("shutting down")
 
 
@@ -78,6 +89,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(CorrelationIdMiddleware)
     app.include_router(knowledge_base_router)
+    app.include_router(chat_router)
 
     @app.get(
         "/health",
@@ -89,6 +101,9 @@ def create_app() -> FastAPI:
     )
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    # FastAPI omits websocket routes from the schema; add /ws by hand.
+    app.openapi = lambda: build_openapi(app)  # type: ignore[method-assign]
 
     return app
 

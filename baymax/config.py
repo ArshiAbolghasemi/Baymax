@@ -20,7 +20,8 @@ from dynaconf import Dynaconf
 
 from baymax.api.config import ApiConfig
 from baymax.celery.config import CeleryConfig
-from baymax.clients.config import EmbeddingConfig, QdrantConfig
+from baymax.chat.config import ChatConfig
+from baymax.clients.config import EmbeddingConfig, LLMConfig, QdrantConfig
 from baymax.common.env import dynaconf_kwargs
 from baymax.db.config import DatabaseConfig
 from baymax.knowledge_base.config import KnowledgeBaseConfig
@@ -78,9 +79,11 @@ class AppConfig:
 
     api: ApiConfig
     logging: LoggingConfig
+    chat: ChatConfig
     database: DatabaseConfig
     celery: CeleryConfig
     embedding: EmbeddingConfig
+    llm: LLMConfig
     qdrant: QdrantConfig
     knowledge_base: KnowledgeBaseConfig
 
@@ -91,9 +94,11 @@ def get_config() -> AppConfig:
     return AppConfig(
         api=ApiConfig(),
         logging=LoggingConfig(),
+        chat=ChatConfig(),
         database=DatabaseConfig(),
         celery=CeleryConfig(),
         embedding=EmbeddingConfig(),
+        llm=LLMConfig(),
         qdrant=QdrantConfig(),
         knowledge_base=KnowledgeBaseConfig(),
     )
