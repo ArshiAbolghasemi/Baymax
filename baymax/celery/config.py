@@ -40,4 +40,4 @@ class CeleryConfig(Dynaconf):
 
     @property
     def task_time_limit(self) -> int:
-        return int(self.get("CELERY_TASK_TIME_LIMIT", 600))
+        return int(self.get("CELERY_TASK_TIME_LIMIT", 43200))
