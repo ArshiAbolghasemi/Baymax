@@ -1,0 +1,56 @@
+[project]
+name = "hiro"
+version = "0.1.0"
+description = "Baymax medical knowledge base, agentic chat workflow, and HTTP API"
+requires-python = ">=3.14"
+dependencies = [
+    "alembic==1.19.1",
+    "celery[redis]==5.6.3",
+    "dynaconf==3.3.5",
+    "fastapi==0.141.1",
+    "httpx==0.28.1",
+    "langchain-core==1.5.4",
+    "langchain-openai==1.5.0",
+    "langgraph==1.2.2",
+    "loguru==0.7.3",
+    "openai==3.0.0",
+    "psycopg[binary]==3.3.4",
+    "pydantic==2.13.4",
+    "qdrant-client==1.19.0",
+    "sqlalchemy[asyncio]==2.0.52",
+    "tenacity==9.1.4",
+    "uvicorn[standard]==0.52.3",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.16.3",
+]
+
+# An application, not a library: the top-level packages (api, chat, db, worker,
+# ...) are imported from this directory rather than installed into site-packages.
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "TID",  # flake8-tidy-imports
+    "RUF",  # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI dependency injection relies on function calls in argument defaults.
+"knowledge_base/router.py" = ["B008"]
