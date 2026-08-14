@@ -1,0 +1,64 @@
+{#
+  Gemma-style conversation wrapper with Hermes JSON tool-call tags.
+
+  MedGemma 4B is not a native function-calling checkpoint. This template puts
+  the OpenAI tool schemas and serialization contract into its first user turn;
+  vLLM's Hermes parser converts compliant <tool_call> output into the standard
+  OpenAI `tool_calls` response consumed by LangChain.
+#}
+{{ bos_token }}
+{%- set state = namespace(system='', first_user=true) -%}
+{%- for message in messages -%}
+  {%- if message['role'] == 'system' -%}
+    {%- set state.system = message['content'] -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- for message in messages -%}
+  {%- if message['role'] == 'user' -%}
+<start_of_turn>user
+    {%- if state.first_user and state.system %}
+{{ state.system }}
+
+    {%- endif -%}
+    {%- if state.first_user and tools %}
+You have access to the following functions:
+<tools>
+{{ tools | tojson }}
+</tools>
+
+When a function is needed, respond only with one or more calls in this exact format:
+<tool_call>{"name":"function_name","arguments":{"argument":"value"}}</tool_call>
+Do not invent function names or arguments. After function results are supplied,
+use them to answer the user. If no function is needed, answer normally.
+
+    {%- endif -%}
+{{ message['content'] }}<end_of_turn>
+    {%- set state.first_user = false -%}
+  {%- elif message['role'] == 'assistant' -%}
+<start_of_turn>model
+    {%- if message.get('content') %}
+{{ message['content'] }}
+    {%- endif -%}
+    {%- for tool_call in message.get('tool_calls', []) %}
+<tool_call>{"name":{{ tool_call['function']['name'] | tojson }},"arguments":
+      {%- if tool_call['function']['arguments'] is string -%}
+{{ tool_call['function']['arguments'] }}
+      {%- else -%}
+{{ tool_call['function']['arguments'] | tojson }}
+      {%- endif -%}
+}</tool_call>
+    {%- endfor -%}
+<end_of_turn>
+  {%- elif message['role'] == 'tool' -%}
+    {%- if loop.first or messages[loop.index0 - 1]['role'] != 'tool' -%}
+<start_of_turn>user
+    {%- endif -%}
+<tool_response tool_call_id={{ message.get('tool_call_id', '') | tojson }}>{{ message['content'] }}</tool_response>
+    {%- if loop.last or messages[loop.index0 + 1]['role'] != 'tool' -%}
+<end_of_turn>
+    {%- endif -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- if add_generation_prompt -%}
+<start_of_turn>model
+{%- endif -%}
