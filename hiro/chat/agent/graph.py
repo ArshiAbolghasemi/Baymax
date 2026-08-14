@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Literal
 
+from langchain_core.messages import AIMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
@@ -15,6 +16,39 @@ from chat.agent.tools import EXTERNAL_MEDICAL_TOOLS
 from common.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def assistant_text(message: object) -> str:
+    """Text the model generated, and nothing else.
+
+    Two things are filtered out here, because both would otherwise reach the
+    client as if the assistant had said them:
+
+    * Non-assistant messages. The answer node returns its whole prompt into
+      state on the first pass, so the system and user messages travel the same
+      stream as the reply.
+    * Non-text content blocks. Reasoning models return ``content`` as a list of
+      blocks; ``str()`` on that dumps the model's private reasoning verbatim.
+    """
+    if not isinstance(message, AIMessage):
+        return ""
+
+    content = message.content
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict) and block.get("type") == "text":
+            text = block.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "".join(parts)
+
 
 ANSWER_NODE = "answer"
 BLOCKED_NODE = "blocked"
@@ -108,9 +142,8 @@ async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[
                 message, metadata = chunk
                 if metadata.get("langgraph_node") != ANSWER_NODE:
                     continue
-                text = getattr(message, "content", "")
-                if text:
-                    rendered = str(text)
+                rendered = assistant_text(message)
+                if rendered:
                     chunks_yielded += 1
                     chars_yielded += len(rendered)
                     yield rendered
