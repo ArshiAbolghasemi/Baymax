@@ -1,126 +1,229 @@
-"""Chat endpoints: one WebSocket for output, plain HTTP for everything else."""
+"""OpenAI-compatible HTTP API for the database-backed Baymax agent."""
 
+import asyncio
+import json
+import time
 import uuid
-from typing import Annotated
+from collections.abc import AsyncIterator
+from typing import Annotated, Any
 
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    HTTPException,
-    Query,
-    WebSocket,
-    WebSocketDisconnect,
-    status,
-)
+from fastapi import APIRouter, Header, HTTPException, status
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from baymax.chat import service
-from baymax.chat.connections import connections
 from baymax.chat.schemas import (
-    MessageCreate,
-    MessageRead,
-    SessionCreate,
-    SessionRead,
-    StreamAccepted,
+    AssistantMessage,
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    CompletionChoice,
+    ModelInfo,
+    ModelList,
 )
 from baymax.common.logging import get_logger
+from baymax.config import get_config
 from baymax.db.dependencies import AsyncSessionDep
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["chat"])
+router = APIRouter(prefix="/v1", tags=["chat"])
 
 
-@router.websocket("/ws")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    user_uid: Annotated[uuid.UUID, Query(description="Owner of this socket.")],
-) -> None:
-    """Receive-only channel: the server streams assistant replies down it.
+def _completion_id() -> str:
+    return f"chatcmpl-{uuid.uuid4().hex}"
 
-    The client sends nothing meaningful here — chat messages go over HTTP. We
-    still read in a loop because that is the only way Starlette surfaces a
-    disconnect, and anything received is discarded.
-    """
-    await websocket.accept()
-    logger.info("websocket accepted user_uid=%s", user_uid)
-    connections.register(user_uid, websocket)
 
+def _sse(payload: dict[str, Any] | str) -> str:
+    body = payload if isinstance(payload, str) else json.dumps(payload, separators=(",", ":"))
+    return f"data: {body}\n\n"
+
+
+def _chunk(
+    *,
+    completion_id: str,
+    created: int,
+    model: str,
+    delta: dict[str, str],
+    finish_reason: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": delta,
+                "finish_reason": finish_reason,
+            }
+        ],
+    }
+
+
+async def _completion_events(
+    turn: service.PreparedTurn,
+    *,
+    completion_id: str,
+    created: int,
+    model: str,
+) -> AsyncIterator[str]:
+    logger.info(
+        "openai stream started completion_id=%s session_uid=%s model=%s",
+        completion_id,
+        turn.session_uid,
+        model,
+    )
+    yield _sse(
+        _chunk(
+            completion_id=completion_id,
+            created=created,
+            model=model,
+            delta={"role": "assistant", "content": ""},
+        )
+    )
     try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        logger.info("websocket disconnected for user %s", user_uid)
+        async for text in service.stream_reply(turn):
+            yield _sse(
+                _chunk(
+                    completion_id=completion_id,
+                    created=created,
+                    model=model,
+                    delta={"content": text},
+                )
+            )
+        yield _sse(
+            _chunk(
+                completion_id=completion_id,
+                created=created,
+                model=model,
+                delta={},
+                finish_reason="stop",
+            )
+        )
+        yield _sse("[DONE]")
+        logger.info(
+            "openai stream completed completion_id=%s session_uid=%s",
+            completion_id,
+            turn.session_uid,
+        )
+    except asyncio.CancelledError:
+        logger.warning(
+            "openai stream cancelled completion_id=%s session_uid=%s",
+            completion_id,
+            turn.session_uid,
+        )
+        raise
     except Exception:
-        logger.info("websocket errored for user %s", user_uid, exc_info=True)
-    finally:
-        connections.unregister(user_uid, websocket)
+        logger.exception(
+            "openai stream failed completion_id=%s session_uid=%s",
+            completion_id,
+            turn.session_uid,
+        )
+        yield _sse(
+            {
+                "error": {
+                    "message": "The agent could not complete the response.",
+                    "type": "server_error",
+                    "code": "agent_generation_failed",
+                }
+            }
+        )
+        yield _sse("[DONE]")
+
+
+@router.get("/models", response_model=ModelList, summary="List available agent models")
+async def list_models() -> ModelList:
+    model = get_config().chat.agent_model_name
+    logger.info("openai model list requested advertised_model=%s", model)
+    return ModelList(data=[ModelInfo(id=model)])
 
 
 @router.post(
-    "/sessions",
-    response_model=SessionRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Start a conversation",
+    "/chat/completions",
+    response_model=None,
+    summary="Create an agent chat completion",
+    description=(
+        "OpenAI-compatible chat completions endpoint. Set stream=true for SSE. "
+        "Conversation identity resolves from X-Session-UID, body session_uid, "
+        "body chat_id, then a deterministic user/first-message fallback."
+    ),
 )
-async def create_session(payload: SessionCreate, session: AsyncSessionDep) -> SessionRead:
-    logger.info("create chat session requested user_uid=%s", payload.user_uid)
-    session_uid = await service.create_session(session, payload.user_uid)
-    return SessionRead(session_uid=session_uid)
-
-
-@router.post(
-    "/sessions/{session_uid}/messages",
-    response_model=StreamAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Send a user message and stream the reply over the WebSocket",
-    responses={
-        status.HTTP_404_NOT_FOUND: {"description": "No such session."},
-        status.HTTP_409_CONFLICT: {"description": "No active websocket connection."},
-    },
-)
-async def post_message(
-    session_uid: uuid.UUID,
-    payload: MessageCreate,
+async def create_chat_completion(
+    payload: ChatCompletionRequest,
     session: AsyncSessionDep,
-    background: BackgroundTasks,
-) -> StreamAccepted:
-    """Persist the user turn, then stream the reply.
-
-    The user message is written before anything else, so it survives a failed
-    generation. The reply is produced after this response is sent — the body is
-    only an acknowledgement, the content arrives on the socket.
-    """
+    x_session_uid: Annotated[uuid.UUID | None, Header(alias="X-Session-UID")] = None,
+):
+    started = time.perf_counter()
+    completion_id = _completion_id()
+    model = get_config().chat.agent_model_name
+    logger.info(
+        "openai completion requested completion_id=%s requested_model=%s stream=%s messages=%d",
+        completion_id,
+        payload.model,
+        payload.stream,
+        len(payload.messages),
+    )
     try:
-        user_uid = await service.store_user_message(session, session_uid, payload.content)
-    except service.SessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-
-    # Commit before anything can fail: the user's turn is theirs and must not be
-    # rolled back by a 409, and the background task opens its own session and
-    # has to be able to read what we just wrote.
-    await session.commit()
-    logger.debug("user message committed session_uid=%s", session_uid)
-
-    try:
-        service.ensure_connected(user_uid)
-    except service.NoConnectionError as exc:
+        turn = await service.store_user_message(
+            session,
+            payload,
+            header_session_uid=x_session_uid,
+        )
+        # The graph reads history through a separate async session. Commit the
+        # new user turn before returning a stream or invoking the graph.
+        await session.commit()
+    except service.InvalidConversationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except service.SessionOwnershipError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    background.add_task(service.stream_reply, session_uid, user_uid, payload.content)
-    logger.info("queued reply stream for session %s", session_uid)
+    response_headers = {"X-Session-UID": str(turn.session_uid)}
+    created = int(time.time())
+    if payload.stream:
+        return StreamingResponse(
+            _completion_events(
+                turn,
+                completion_id=completion_id,
+                created=created,
+                model=model,
+            ),
+            media_type="text/event-stream",
+            headers={
+                **response_headers,
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
-    return StreamAccepted()
-
-
-@router.get(
-    "/sessions/{session_uid}/messages",
-    response_model=list[MessageRead],
-    summary="Conversation history, oldest first",
-)
-async def get_messages(session_uid: uuid.UUID, session: AsyncSessionDep) -> list[MessageRead]:
-    logger.info("chat history endpoint requested session_uid=%s", session_uid)
     try:
-        history = await service.get_history(session, session_uid)
-    except service.SessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return [MessageRead.model_validate(message) for message in history]
+        content = await service.answer(turn)
+    except Exception as exc:
+        logger.exception(
+            "openai completion failed completion_id=%s session_uid=%s",
+            completion_id,
+            turn.session_uid,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The agent could not complete the response.",
+        ) from exc
+
+    response = ChatCompletionResponse(
+        id=completion_id,
+        created=created,
+        model=model,
+        choices=[CompletionChoice(message=AssistantMessage(content=content))],
+    )
+    elapsed = (time.perf_counter() - started) * 1_000
+    logger.info(
+        "openai completion completed completion_id=%s session_uid=%s response_chars=%d "
+        "elapsed_ms=%.1f",
+        completion_id,
+        turn.session_uid,
+        len(content),
+        elapsed,
+    )
+    return JSONResponse(
+        content=response.model_dump(mode="json"),
+        headers=response_headers,
+    )

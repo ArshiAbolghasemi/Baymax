@@ -79,7 +79,6 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "tenacity" },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -105,7 +104,6 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.52" },
     { name = "tenacity", specifier = "==9.1.4" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.52.3" },
-    { name = "websockets", specifier = "==17.0.1" },
 ]
 
 [package.metadata.requires-dev]

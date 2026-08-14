@@ -45,8 +45,7 @@ def _log_http_retry(tool_name: str, state: RetryCallState) -> None:
     status = getattr(exception, "status_code", "-")
     delay = state.next_action.sleep if state.next_action else 0
     logger.warning(
-        "external http retry tool=%s attempt=%d status=%s error_type=%s "
-        "next_wait_seconds=%.2f",
+        "external http retry tool=%s attempt=%d status=%s error_type=%s next_wait_seconds=%.2f",
         tool_name,
         state.attempt_number,
         status,

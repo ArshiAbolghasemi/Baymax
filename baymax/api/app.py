@@ -13,7 +13,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from baymax.api.middleware import CorrelationIdMiddleware
-from baymax.api.openapi import build_openapi
 from baymax.api.schemas import HealthResponse
 from baymax.chat.router import router as chat_router
 from baymax.common.logging import configure_logging, get_logger
@@ -37,8 +36,8 @@ OPENAPI_TAGS = [
     {
         "name": "chat",
         "description": (
-            "Streaming conversations. Replies are pushed over the WebSocket at "
-            "/ws, not returned by the HTTP call that triggers them."
+            "OpenAI-compatible agent model discovery and chat completions. "
+            "Responses are available as JSON or server-sent event streams."
         ),
     },
     {
@@ -101,9 +100,6 @@ def create_app() -> FastAPI:
     )
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
-
-    # FastAPI omits websocket routes from the schema; add /ws by hand.
-    app.openapi = lambda: build_openapi(app)  # type: ignore[method-assign]
 
     return app
 

@@ -6,7 +6,9 @@ LangGraph can stream from.
 """
 
 from functools import lru_cache
+from typing import Any
 
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_openai import ChatOpenAI
 
 from baymax.chat.agent.tools import EXTERNAL_MEDICAL_TOOLS
@@ -39,16 +41,13 @@ def get_answer_model() -> ChatOpenAI:
 
 
 @lru_cache(maxsize=1)
-def get_tool_enabled_answer_model():
-    """Answer model with external medical tools exposed for semantic selection."""
+def get_answer_tool_schemas() -> list[dict[str, Any]]:
+    """Convert tools without wrapping or mutating the configured chat model."""
     logger.info(
-        "binding answer model tools=%d strict=true choice=auto", len(EXTERNAL_MEDICAL_TOOLS)
+        "converting answer tools count=%d strict=true",
+        len(EXTERNAL_MEDICAL_TOOLS),
     )
-    return get_answer_model().bind_tools(
-        EXTERNAL_MEDICAL_TOOLS,
-        tool_choice="auto",
-        strict=True,
-    )
+    return [convert_to_openai_tool(tool, strict=True) for tool in EXTERNAL_MEDICAL_TOOLS]
 
 
 @lru_cache(maxsize=1)

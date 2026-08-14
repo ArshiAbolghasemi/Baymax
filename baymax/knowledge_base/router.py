@@ -1,6 +1,6 @@
 """Question/answer endpoints of the knowledge base.
 
-Routed under ``/knowledge-base/qa`` rather than a generic ``/entries`` so other
+Routed under ``/v1/knowledge-base/qa`` rather than a generic ``/entries`` so other
 kinds of source material — documents, guidelines — can be added later as
 sibling resources without either one owning the generic name.
 """
@@ -17,7 +17,7 @@ from baymax.knowledge_base.tasks import index_qa
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/knowledge-base/qa", tags=["knowledge-base: qa"])
+router = APIRouter(prefix="/v1/knowledge-base/qa", tags=["knowledge-base: qa"])
 
 
 @router.post(
@@ -44,7 +44,7 @@ def create_qa(payload: QACreate, session: SessionDep) -> QARead:
     inserted again — the same question can serve several answers.
 
     Returns `202` as soon as Postgres has the entry. Use the returned
-    `answer_uid` with `GET /knowledge-base/qa/{answer_uid}` to follow indexing,
+    `answer_uid` with `GET /v1/knowledge-base/qa/{answer_uid}` to follow indexing,
     or `task_id` to inspect the Celery job.
     """
     logger.info("create qa requested questions=%d", len(payload.questions))

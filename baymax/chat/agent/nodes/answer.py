@@ -2,7 +2,7 @@
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from baymax.chat.agent.models import get_tool_enabled_answer_model
+from baymax.chat.agent.models import get_answer_model, get_answer_tool_schemas
 from baymax.chat.agent.nodes.common import render
 from baymax.chat.agent.state import AgentState
 from baymax.common.logging import get_logger, log_duration
@@ -70,7 +70,20 @@ async def answer(state: AgentState) -> AgentState:
         react_messages=len(previous_messages),
         documents=len(state.get("documents") or []),
     ):
-        reply = await get_tool_enabled_answer_model().ainvoke(messages)
+        llm_config = get_config().llm
+        tools = get_answer_tool_schemas()
+        logger.info(
+            "answer request endpoint=%s model=%s tools=%d choice=auto",
+            llm_config.base_url,
+            llm_config.model,
+            len(tools),
+        )
+        reply = await get_answer_model().ainvoke(
+            messages,
+            model=llm_config.model,
+            tools=tools,
+            tool_choice="auto",
+        )
     tool_calls = getattr(reply, "tool_calls", None) or []
     logger.info(
         "answer model step completed tool_calls=%d content_chars=%d",

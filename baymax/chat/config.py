@@ -1,3 +1,5 @@
+import uuid
+
 from dynaconf import Dynaconf
 
 from baymax.common.env import dynaconf_kwargs
@@ -74,6 +76,25 @@ class ChatConfig(Dynaconf):
 
     def __init__(self) -> None:
         super().__init__(**dynaconf_kwargs())
+
+    # --- OpenAI-compatible API -------------------------------------------
+
+    @property
+    def agent_model_name(self) -> str:
+        """Model id advertised by ``GET /v1/models``."""
+        return str(self.get("CHAT_AGENT_MODEL_NAME", "baymax"))
+
+    @property
+    def session_namespace(self) -> uuid.UUID:
+        """Namespace used to derive stable user and conversation UUIDs."""
+        return uuid.UUID(
+            str(
+                self.get(
+                    "CHAT_SESSION_NAMESPACE",
+                    "e4c72588-f732-4bc8-8a20-0a73ae40bc5e",
+                )
+            )
+        )
 
     # --- retrieval --------------------------------------------------------
 
