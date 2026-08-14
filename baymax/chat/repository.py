@@ -43,3 +43,22 @@ async def list_messages(
     )
     rows = list((await session.scalars(statement)).all())
     return rows[-limit:] if limit else rows
+
+
+async def list_recent_user_messages(
+    session: AsyncSession, session_uid: uuid.UUID, *, limit: int = 5
+) -> list[Message]:
+    """The user's previous questions, oldest first.
+
+    Offset by one: the turn that triggered this run has already been stored, and
+    feeding the question back as its own history is noise.
+    """
+    statement = (
+        select(Message)
+        .where(Message.session_uid == session_uid, Message.role == "user")
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .offset(1)
+        .limit(limit)
+    )
+    rows = list((await session.scalars(statement)).all())
+    return list(reversed(rows))

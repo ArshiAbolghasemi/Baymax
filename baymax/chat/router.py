@@ -103,7 +103,7 @@ async def post_message(
     except service.NoConnectionError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    background.add_task(service.stream_reply, session_uid, user_uid)
+    background.add_task(service.stream_reply, session_uid, user_uid, payload.content)
     logger.info("queued reply stream for session %s", session_uid)
 
     return StreamAccepted()

@@ -10,17 +10,14 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from baymax.chat import repository as repo
+from baymax.chat.agent.graph import stream_answer
 from baymax.chat.connections import connections
 from baymax.chat.models import Message
 from baymax.chat.schemas import DoneFrame, ErrorFrame, TokenFrame
-from baymax.clients.llm import ChatLLM, get_llm
 from baymax.common.logging import get_logger
-from baymax.config import get_config
 from baymax.db.session import async_session_scope
 
 logger = get_logger(__name__)
-
-ROLE_TO_OPENAI = {"user": "user", "ai": "assistant"}
 
 
 class SessionNotFoundError(LookupError):
@@ -70,39 +67,23 @@ def ensure_connected(user_uid: uuid.UUID) -> None:
         raise NoConnectionError(msg)
 
 
-def build_prompt(history: list[Message], system_prompt: str) -> list[dict[str, str]]:
-    """Replay the conversation for the model, oldest first.
-
-    History already contains the user turn just persisted, so nothing needs to be
-    appended here.
-    """
-    messages = [{"role": "system", "content": system_prompt}]
-    messages += [
-        {"role": ROLE_TO_OPENAI.get(m.role, "user"), "content": m.content} for m in history
-    ]
-    return messages
-
-
 async def stream_reply(
     session_uid: uuid.UUID,
     user_uid: uuid.UUID,
-    llm: ChatLLM | None = None,
+    question: str,
 ) -> None:
     """Steps 3 and 4: stream the reply down the socket, then persist it.
+
+    The reply is produced by the agent workflow in :mod:`baymax.chat.agent`,
+    which guards the topic, retrieves context and generates. This function only
+    moves the resulting chunks onto the socket and stores the finished turn.
 
     Runs after the 202 has been sent, so it opens its own database session
     rather than borrowing the request's.
     """
-    config = get_config().chat
-    llm = llm or get_llm()
-
-    async with async_session_scope() as session:
-        history = await repo.list_messages(session, session_uid, limit=config.history_limit)
-    prompt = build_prompt(history, config.system_prompt)
-
     chunks: list[str] = []
     try:
-        async for chunk in llm.stream(prompt):
+        async for chunk in stream_answer(question, session_uid):
             chunks.append(chunk)
             frame = TokenFrame(session_uid=session_uid, data=chunk)
             if not await connections.send(user_uid, frame.model_dump(mode="json")):

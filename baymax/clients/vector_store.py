@@ -8,6 +8,7 @@ than reading a domain's config.
 import uuid
 from collections.abc import Sequence
 from functools import cache, lru_cache
+from typing import Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
@@ -69,6 +70,21 @@ class VectorStore:
         # not exist.
         with log_duration(logger, "qdrant upsert", collection=self._collection, points=len(points)):
             self._client.upsert(collection_name=self._collection, points=list(points), wait=True)
+
+    def search(self, vector: Sequence[float], *, limit: int = 5) -> list[dict[str, Any]]:
+        """Nearest points to a query vector, payload included.
+
+        Returns plain dicts rather than Qdrant models so callers (and prompts)
+        do not depend on the client library's types.
+        """
+        with log_duration(logger, "qdrant search", collection=self._collection, limit=limit):
+            response = self._client.query_points(
+                collection_name=self._collection,
+                query=list(vector),
+                limit=limit,
+                with_payload=True,
+            )
+        return [{"score": point.score, **(point.payload or {})} for point in response.points]
 
     def delete(self, point_uids: Sequence[uuid.UUID]) -> None:
         if not point_uids:
