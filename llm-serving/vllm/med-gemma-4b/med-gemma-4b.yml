@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ../../.env
+      - ../../../.env
     volumes:
       - hf-cache:/root/.cache/huggingface
       - ./tool_chat_template_medgemma.jinja:/templates/tool_chat_template_medgemma.jinja:ro
