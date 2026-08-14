@@ -25,7 +25,7 @@ GUARDRAIL_TAG = "guardrail"
 
 @lru_cache(maxsize=1)
 def get_answer_model() -> ChatOpenAI:
-    config = get_config().llm
+    config = get_config().chatbot
     logger.info("answer model %s at %s", config.model, config.base_url)
     return ChatOpenAI(
         base_url=config.base_url,
@@ -52,19 +52,15 @@ def get_answer_tool_schemas() -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def get_guardrail_model() -> ChatOpenAI:
-    """Same endpoint, but pinned to a single deterministic token.
-
-    ``temperature=0`` and a tiny ``max_tokens`` keep the classifier cheap and
-    stop it from explaining itself.
-    """
-    config = get_config().llm
+    """Build the independently configured topic-classification model."""
+    config = get_config().guardrail
     logger.info("guardrail model %s at %s", config.model, config.base_url)
     return ChatOpenAI(
         base_url=config.base_url,
         api_key=config.api_key,
         model=config.model,
-        temperature=0.0,
-        max_tokens=4,
+        temperature=config.temperature,
+        max_tokens=config.max_tokens,
         max_retries=config.max_retries,
         timeout=config.timeout,
         streaming=False,

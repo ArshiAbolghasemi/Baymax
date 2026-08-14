@@ -80,7 +80,7 @@ class QdrantConfig(Dynaconf):
         return str(self.get("QDRANT_DISTANCE", "Cosine"))
 
 
-class LLMConfig(Dynaconf):
+class ChatbotConfig(Dynaconf):
     """Generative model endpoint, OpenAI-compatible (vLLM serving MedGemma).
 
     Separate from :class:`EmbeddingConfig`: the two are different models, often
@@ -92,30 +92,95 @@ class LLMConfig(Dynaconf):
 
     @property
     def base_url(self) -> str:
-        return str(self.get("LLM_BASE_URL", "http://localhost:8000/v1"))
+        return str(self.get("CHATBOT_BASE_URL", "http://localhost:8000/v1"))
 
     @property
     def model(self) -> str:
-        return str(self.get("LLM_MODEL", "medgemma-4b"))
+        return str(self.get("CHATBOT_MODEL", "medgemma-4b"))
 
     @property
     def api_key(self) -> str:
         """vLLM ignores this, but the OpenAI client refuses to start without one."""
-        return str(self.get("LLM_API_KEY", "not-needed"))
+        return str(self.get("CHATBOT_API_KEY", "not-needed"))
 
     @property
     def timeout(self) -> float:
-        return float(self.get("LLM_TIMEOUT", 300))
+        return float(self.get("CHATBOT_TIMEOUT", 300))
 
     @property
     def max_retries(self) -> int:
         """Retries performed by the OpenAI client for transient request failures."""
-        return int(self.get("LLM_MAX_RETRIES", 2))
+        return int(self.get("CHATBOT_MAX_RETRIES", 2))
 
     @property
     def temperature(self) -> float:
-        return float(self.get("LLM_TEMPERATURE", 0.7))
+        return float(self.get("CHATBOT_TEMPERATURE", 0.7))
 
     @property
     def max_tokens(self) -> int:
-        return int(self.get("LLM_MAX_TOKENS", 1024))
+        return int(self.get("CHATBOT_MAX_TOKENS", 1024))
+
+
+class GuardrailConfig(Dynaconf):
+    """Independent OpenAI-compatible model used for topic classification.
+
+    Connection settings inherit their ``CHATBOT_*`` counterparts when a dedicated
+    ``GUARDRAIL_*`` variable is omitted. Classification behavior keeps its
+    deterministic low-token defaults while remaining fully configurable.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(**dynaconf_kwargs())
+
+    @property
+    def base_url(self) -> str:
+        return str(
+            self.get(
+                "GUARDRAIL_BASE_URL",
+                self.get("CHATBOT_BASE_URL", "http://localhost:8000/v1"),
+            )
+        )
+
+    @property
+    def model(self) -> str:
+        return str(
+            self.get(
+                "GUARDRAIL_MODEL",
+                self.get("CHATBOT_MODEL", "medgemma-4b"),
+            )
+        )
+
+    @property
+    def api_key(self) -> str:
+        return str(
+            self.get(
+                "GUARDRAIL_API_KEY",
+                self.get("CHATBOT_API_KEY", "not-needed"),
+            )
+        )
+
+    @property
+    def timeout(self) -> float:
+        return float(
+            self.get(
+                "GUARDRAIL_TIMEOUT",
+                self.get("CHATBOT_TIMEOUT", 300),
+            )
+        )
+
+    @property
+    def max_retries(self) -> int:
+        return int(
+            self.get(
+                "GUARDRAIL_MAX_RETRIES",
+                self.get("CHATBOT_MAX_RETRIES", 2),
+            )
+        )
+
+    @property
+    def temperature(self) -> float:
+        return float(self.get("GUARDRAIL_TEMPERATURE", 0))
+
+    @property
+    def max_tokens(self) -> int:
+        return int(self.get("GUARDRAIL_MAX_TOKENS", 4))

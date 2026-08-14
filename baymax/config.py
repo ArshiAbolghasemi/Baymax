@@ -21,7 +21,7 @@ from dynaconf import Dynaconf
 from baymax.api.config import ApiConfig
 from baymax.celery.config import CeleryConfig
 from baymax.chat.config import ChatConfig, MedicalToolsConfig
-from baymax.clients.config import EmbeddingConfig, LLMConfig, QdrantConfig
+from baymax.clients.config import ChatbotConfig, EmbeddingConfig, GuardrailConfig, QdrantConfig
 from baymax.common.env import dynaconf_kwargs
 from baymax.db.config import DatabaseConfig
 from baymax.knowledge_base.config import KnowledgeBaseConfig
@@ -83,7 +83,8 @@ class AppConfig:
     database: DatabaseConfig
     celery: CeleryConfig
     embedding: EmbeddingConfig
-    llm: LLMConfig
+    chatbot: ChatbotConfig
+    guardrail: GuardrailConfig
     qdrant: QdrantConfig
     knowledge_base: KnowledgeBaseConfig
 
@@ -99,7 +100,8 @@ def get_config() -> AppConfig:
         database=DatabaseConfig(),
         celery=CeleryConfig(),
         embedding=EmbeddingConfig(),
-        llm=LLMConfig(),
+        chatbot=ChatbotConfig(),
+        guardrail=GuardrailConfig(),
         qdrant=QdrantConfig(),
         knowledge_base=KnowledgeBaseConfig(),
     )

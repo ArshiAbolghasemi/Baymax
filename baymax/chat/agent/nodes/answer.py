@@ -70,17 +70,17 @@ async def answer(state: AgentState) -> AgentState:
         react_messages=len(previous_messages),
         documents=len(state.get("documents") or []),
     ):
-        llm_config = get_config().llm
+        chatbot_config = get_config().chatbot
         tools = get_answer_tool_schemas()
         logger.info(
             "answer request endpoint=%s model=%s tools=%d choice=auto",
-            llm_config.base_url,
-            llm_config.model,
+            chatbot_config.base_url,
+            chatbot_config.model,
             len(tools),
         )
         reply = await get_answer_model().ainvoke(
             messages,
-            model=llm_config.model,
+            model=chatbot_config.model,
             tools=tools,
             tool_choice="auto",
         )
