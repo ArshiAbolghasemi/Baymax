@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from langchain_openai import ChatOpenAI
 
+from baymax.chat.agent.tools import EXTERNAL_MEDICAL_TOOLS
 from baymax.common.logging import get_logger
 from baymax.config import get_config
 
@@ -30,9 +31,23 @@ def get_answer_model() -> ChatOpenAI:
         model=config.model,
         temperature=config.temperature,
         max_tokens=config.max_tokens,
+        max_retries=config.max_retries,
         timeout=config.timeout,
         streaming=True,
         tags=[ANSWER_TAG],
+    )
+
+
+@lru_cache(maxsize=1)
+def get_tool_enabled_answer_model():
+    """Answer model with external medical tools exposed for semantic selection."""
+    logger.info(
+        "binding answer model tools=%d strict=true choice=auto", len(EXTERNAL_MEDICAL_TOOLS)
+    )
+    return get_answer_model().bind_tools(
+        EXTERNAL_MEDICAL_TOOLS,
+        tool_choice="auto",
+        strict=True,
     )
 
 
@@ -44,12 +59,14 @@ def get_guardrail_model() -> ChatOpenAI:
     stop it from explaining itself.
     """
     config = get_config().llm
+    logger.info("guardrail model %s at %s", config.model, config.base_url)
     return ChatOpenAI(
         base_url=config.base_url,
         api_key=config.api_key,
         model=config.model,
         temperature=0.0,
         max_tokens=4,
+        max_retries=config.max_retries,
         timeout=config.timeout,
         streaming=False,
         tags=[GUARDRAIL_TAG],

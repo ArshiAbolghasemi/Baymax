@@ -1,7 +1,10 @@
 """State passed between the graph's nodes."""
 
 import uuid
-from typing import TypedDict
+from typing import Annotated, TypedDict
+
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
 
 
 class AgentState(TypedDict, total=False):
@@ -22,6 +25,10 @@ class AgentState(TypedDict, total=False):
     # retrieval, filled concurrently
     documents: list[str]
     history: list[str]
+
+    # ReAct conversation. ``add_messages`` appends model/tool turns while the
+    # answer and external-tools nodes loop.
+    messages: Annotated[list[AnyMessage], add_messages]
 
     # answer / blocked
     answer: str

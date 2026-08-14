@@ -1,14 +1,17 @@
 """The compiled workflow, and the streaming interface the chat service uses."""
 
+import time
 import uuid
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import ToolNode
 
 from baymax.chat.agent import nodes
 from baymax.chat.agent.state import AgentState
+from baymax.chat.agent.tools import EXTERNAL_MEDICAL_TOOLS
 from baymax.common.logging import get_logger
 
 logger = get_logger(__name__)
@@ -16,6 +19,7 @@ logger = get_logger(__name__)
 ANSWER_NODE = "answer"
 BLOCKED_NODE = "blocked"
 RETRIEVAL_NODES = ["retrieve_documents", "retrieve_history"]
+TOOLS_NODE = "external_tools"
 
 
 def route_after_guardrail(state: AgentState) -> Literal["blocked"] | list[str]:
@@ -25,8 +29,22 @@ def route_after_guardrail(state: AgentState) -> Literal["blocked"] | list[str]:
     concurrently rather than one after the other.
     """
     if not state.get("allowed"):
+        logger.info("agent routing branch=blocked")
         return BLOCKED_NODE
+    logger.info("agent routing branch=retrieval nodes=%d", len(RETRIEVAL_NODES))
     return RETRIEVAL_NODES
+
+
+def route_after_answer(state: AgentState) -> Literal["external_tools", "__end__"]:
+    """Continue the ReAct loop exactly when the model requested a tool."""
+    messages = state.get("messages") or []
+    if messages and getattr(messages[-1], "tool_calls", None):
+        tool_calls = messages[-1].tool_calls
+        tool_names = [call.get("name", "unknown") for call in tool_calls]
+        logger.info("agent routing branch=tools count=%d tools=%s", len(tool_calls), tool_names)
+        return TOOLS_NODE
+    logger.info("agent routing branch=complete")
+    return END
 
 
 @lru_cache(maxsize=1)
@@ -39,6 +57,7 @@ def get_graph():
     builder.add_node("retrieve_documents", nodes.retrieve_documents)
     builder.add_node("retrieve_history", nodes.retrieve_history)
     builder.add_node(ANSWER_NODE, nodes.answer)
+    builder.add_node(TOOLS_NODE, ToolNode(EXTERNAL_MEDICAL_TOOLS))
 
     builder.add_edge(START, "guardrail")
     builder.add_conditional_edges(
@@ -52,10 +71,15 @@ def get_graph():
     for node in RETRIEVAL_NODES:
         builder.add_edge(node, ANSWER_NODE)
 
-    builder.add_edge(ANSWER_NODE, END)
+    builder.add_conditional_edges(ANSWER_NODE, route_after_answer, [TOOLS_NODE, END])
+    builder.add_edge(TOOLS_NODE, ANSWER_NODE)
     builder.add_edge(BLOCKED_NODE, END)
 
-    logger.info("chat agent graph compiled")
+    logger.info(
+        "chat agent graph compiled retrieval_nodes=%d external_tools=%d",
+        len(RETRIEVAL_NODES),
+        len(EXTERNAL_MEDICAL_TOOLS),
+    )
     return builder.compile()
 
 
@@ -70,15 +94,43 @@ async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[
       calls no model and therefore emits no tokens — delivers its fixed refusal.
     """
     state: AgentState = {"question": question, "session_uid": session_uid}
+    started = time.perf_counter()
+    chunks_yielded = 0
+    chars_yielded = 0
+    logger.info("agent run started session_uid=%s question_chars=%d", session_uid, len(question))
 
-    async for mode, chunk in get_graph().astream(state, stream_mode=["updates", "messages"]):
-        if mode == "messages":
-            message, metadata = chunk
-            if metadata.get("langgraph_node") != ANSWER_NODE:
-                continue
-            text = getattr(message, "content", "")
-            if text:
-                yield str(text)
+    try:
+        async for mode, chunk in get_graph().astream(state, stream_mode=["updates", "messages"]):
+            if mode == "messages":
+                message, metadata = chunk
+                if metadata.get("langgraph_node") != ANSWER_NODE:
+                    continue
+                text = getattr(message, "content", "")
+                if text:
+                    rendered = str(text)
+                    chunks_yielded += 1
+                    chars_yielded += len(rendered)
+                    yield rendered
 
-        elif mode == "updates" and BLOCKED_NODE in chunk:
-            yield chunk[BLOCKED_NODE]["answer"]
+            elif mode == "updates" and BLOCKED_NODE in chunk:
+                rendered = chunk[BLOCKED_NODE]["answer"]
+                chunks_yielded += 1
+                chars_yielded += len(rendered)
+                yield rendered
+    except Exception:
+        logger.exception(
+            "agent run failed session_uid=%s chunks=%d chars=%d",
+            session_uid,
+            chunks_yielded,
+            chars_yielded,
+        )
+        raise
+    finally:
+        elapsed = (time.perf_counter() - started) * 1_000
+        logger.info(
+            "agent run finished session_uid=%s chunks=%d chars=%d elapsed_ms=%.1f",
+            session_uid,
+            chunks_yielded,
+            chars_yielded,
+            elapsed,
+        )
