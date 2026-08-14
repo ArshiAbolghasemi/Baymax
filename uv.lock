@@ -77,6 +77,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "qdrant-client" },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "tenacity" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "websockets" },
 ]
@@ -102,6 +103,7 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "qdrant-client", specifier = "==1.19.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.52" },
+    { name = "tenacity", specifier = "==9.1.4" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.52.3" },
     { name = "websockets", specifier = "==17.0.1" },
 ]

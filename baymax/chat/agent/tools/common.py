@@ -1,15 +1,17 @@
 """Shared transport, normalization, caching, and error behavior for tools."""
 
-import asyncio
 import copy
 import html
 import re
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Any
 
 import httpx
+from tenacity import AsyncRetrying, RetryCallState, retry_if_exception, stop_after_attempt
+from tenacity.wait import wait_exponential
 
 from baymax.common.logging import get_logger
 from baymax.config import get_config
@@ -23,6 +25,34 @@ class ExternalServiceError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+class _TransientStatusError(RuntimeError):
+    def __init__(self, status_code: int) -> None:
+        super().__init__(f"transient HTTP status {status_code}")
+        self.status_code = status_code
+
+
+def _is_retryable_http_error(exc: BaseException) -> bool:
+    return isinstance(
+        exc,
+        (httpx.TimeoutException, httpx.NetworkError, _TransientStatusError),
+    )
+
+
+def _log_http_retry(tool_name: str, state: RetryCallState) -> None:
+    exception = state.outcome.exception() if state.outcome else None
+    status = getattr(exception, "status_code", "-")
+    delay = state.next_action.sleep if state.next_action else 0
+    logger.warning(
+        "external http retry tool=%s attempt=%d status=%s error_type=%s "
+        "next_wait_seconds=%.2f",
+        tool_name,
+        state.attempt_number,
+        status,
+        type(exception).__name__ if exception else "unknown",
+        delay,
+    )
 
 
 _CacheValue = tuple[float, dict[str, Any]]
@@ -82,51 +112,50 @@ async def get(
     started = time.perf_counter()
     last_error: Exception | None = None
     last_status: int | None = None
+    retrying = AsyncRetrying(
+        retry=retry_if_exception(_is_retryable_http_error),
+        stop=stop_after_attempt(config.http_max_retries + 1),
+        wait=wait_exponential(
+            multiplier=config.http_retry_multiplier,
+            min=config.http_retry_min_wait,
+            max=config.http_retry_max_wait,
+        ),
+        before_sleep=partial(_log_http_retry, tool_name),
+        reraise=True,
+    )
 
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        for attempt in range(3):
-            try:
-                logger.debug(
-                    "external http request tool=%s attempt=%d host=%s",
-                    tool_name,
-                    attempt + 1,
-                    httpx.URL(url).host,
-                )
-                response = await client.get(url, params=params)
-                last_status = response.status_code
-                if response.status_code in config.transient_status_codes and attempt < 2:
-                    logger.warning(
-                        "external http retry tool=%s attempt=%d status=%d",
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            async for attempt in retrying:
+                with attempt:
+                    attempt_number = attempt.retry_state.attempt_number
+                    logger.debug(
+                        "external http request tool=%s attempt=%d host=%s",
                         tool_name,
-                        attempt + 1,
+                        attempt_number,
+                        httpx.URL(url).host,
+                    )
+                    response = await client.get(url, params=params)
+                    last_status = response.status_code
+                    if response.status_code in config.transient_status_codes:
+                        raise _TransientStatusError(response.status_code)
+                    response.raise_for_status()
+                    elapsed = (time.perf_counter() - started) * 1_000
+                    logger.info(
+                        "external tool=%s latency_ms=%.1f status=%s attempts=%d error_type=-",
+                        tool_name,
+                        elapsed,
                         response.status_code,
+                        attempt_number,
                     )
-                    await asyncio.sleep(0.25 * (2**attempt))
-                    continue
-                response.raise_for_status()
-                elapsed = (time.perf_counter() - started) * 1_000
-                logger.info(
-                    "external tool=%s latency_ms=%.1f status=%s error_type=-",
-                    tool_name,
-                    elapsed,
-                    response.status_code,
-                )
-                return response
-            except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                last_error = exc
-                if attempt < 2:
-                    logger.warning(
-                        "external http retry tool=%s attempt=%d error_type=%s",
-                        tool_name,
-                        attempt + 1,
-                        type(exc).__name__,
-                    )
-                    await asyncio.sleep(0.25 * (2**attempt))
-                    continue
-                break
-            except httpx.HTTPStatusError as exc:
-                last_error = exc
-                break
+                    return response
+    except (
+        _TransientStatusError,
+        httpx.HTTPStatusError,
+        httpx.NetworkError,
+        httpx.TimeoutException,
+    ) as exc:
+        last_error = exc
 
     elapsed = (time.perf_counter() - started) * 1_000
     error_type = type(last_error).__name__ if last_error else "ExternalServiceError"

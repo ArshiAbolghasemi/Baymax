@@ -202,5 +202,21 @@ class MedicalToolsConfig(Dynaconf):
         return float(self.get("MEDICAL_TOOLS_HTTP_POOL_TIMEOUT", 5))
 
     @property
+    def http_max_retries(self) -> int:
+        return int(self.get("MEDICAL_TOOLS_HTTP_MAX_RETRIES", 2))
+
+    @property
+    def http_retry_multiplier(self) -> float:
+        return float(self.get("MEDICAL_TOOLS_HTTP_RETRY_MULTIPLIER", 0.25))
+
+    @property
+    def http_retry_min_wait(self) -> float:
+        return float(self.get("MEDICAL_TOOLS_HTTP_RETRY_MIN_WAIT", 0.25))
+
+    @property
+    def http_retry_max_wait(self) -> float:
+        return float(self.get("MEDICAL_TOOLS_HTTP_RETRY_MAX_WAIT", 2))
+
+    @property
     def faers_disclaimer(self) -> str:
         return str(self.get("FAERS_DISCLAIMER", _DEFAULT_FAERS_DISCLAIMER))
