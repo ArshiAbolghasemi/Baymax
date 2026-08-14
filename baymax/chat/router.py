@@ -42,6 +42,7 @@ async def websocket_endpoint(
     disconnect, and anything received is discarded.
     """
     await websocket.accept()
+    logger.info("websocket accepted user_uid=%s", user_uid)
     connections.register(user_uid, websocket)
 
     try:
@@ -62,6 +63,7 @@ async def websocket_endpoint(
     summary="Start a conversation",
 )
 async def create_session(payload: SessionCreate, session: AsyncSessionDep) -> SessionRead:
+    logger.info("create chat session requested user_uid=%s", payload.user_uid)
     session_uid = await service.create_session(session, payload.user_uid)
     return SessionRead(session_uid=session_uid)
 
@@ -97,6 +99,7 @@ async def post_message(
     # rolled back by a 409, and the background task opens its own session and
     # has to be able to read what we just wrote.
     await session.commit()
+    logger.debug("user message committed session_uid=%s", session_uid)
 
     try:
         service.ensure_connected(user_uid)
@@ -115,6 +118,7 @@ async def post_message(
     summary="Conversation history, oldest first",
 )
 async def get_messages(session_uid: uuid.UUID, session: AsyncSessionDep) -> list[MessageRead]:
+    logger.info("chat history endpoint requested session_uid=%s", session_uid)
     try:
         history = await service.get_history(session, session_uid)
     except service.SessionNotFoundError as exc:

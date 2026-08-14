@@ -24,14 +24,19 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         inbound = request.headers.get(CORRELATION_HEADER)
 
         with bind_correlation_id(inbound) as request_id:
-            logger.info("--> %s %s", request.method, request.url.path)
+            logger.info(
+                "http request started method=%s path=%s client=%s",
+                request.method,
+                request.url.path,
+                request.client.host if request.client else "unknown",
+            )
             started = time.perf_counter()
             try:
                 response = await call_next(request)
             except Exception:
                 elapsed = (time.perf_counter() - started) * 1000
                 logger.exception(
-                    "<-- %s %s failed elapsed_ms=%.1f",
+                    "http request failed method=%s path=%s elapsed_ms=%.1f",
                     request.method,
                     request.url.path,
                     elapsed,
@@ -40,7 +45,7 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 
             elapsed = (time.perf_counter() - started) * 1000
             logger.info(
-                "<-- %s %s status=%d elapsed_ms=%.1f",
+                "http request completed method=%s path=%s status=%d elapsed_ms=%.1f",
                 request.method,
                 request.url.path,
                 response.status_code,

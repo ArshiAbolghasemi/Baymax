@@ -88,7 +88,9 @@ def get_qa(
     The entry is fully indexed when `indexed_pairs == total_pairs`; every pair
     then carries the `point_uid` of its Qdrant point.
     """
+    logger.info("qa status requested answer_uid=%s", answer_uid)
     try:
         return service.get_qa_status(session, answer_uid)
     except service.AnswerNotFoundError as exc:
+        logger.warning("qa status not found answer_uid=%s", answer_uid)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

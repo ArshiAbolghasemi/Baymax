@@ -56,6 +56,7 @@ class ConnectionManager:
         websocket = self._sockets.get(user_uid)
         lock = self._locks.get(user_uid)
         if websocket is None or lock is None:
+            logger.debug("websocket send skipped no connection user_uid=%s", user_uid)
             return False
 
         try:

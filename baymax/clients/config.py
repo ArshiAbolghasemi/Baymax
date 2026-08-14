@@ -108,6 +108,11 @@ class LLMConfig(Dynaconf):
         return float(self.get("LLM_TIMEOUT", 300))
 
     @property
+    def max_retries(self) -> int:
+        """Retries performed by the OpenAI client for transient request failures."""
+        return int(self.get("LLM_MAX_RETRIES", 2))
+
+    @property
     def temperature(self) -> float:
         return float(self.get("LLM_TEMPERATURE", 0.7))
 

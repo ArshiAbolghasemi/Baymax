@@ -63,4 +63,10 @@ def index_qa(self: Task, answer_uid: str, correlation_id: str | None = None) -> 
                 vector_store=vector_store,
             )
 
+        logger.info(
+            "index task completed answer_uid=%s indexed_pairs=%d attempt=%d",
+            answer_uid,
+            indexed,
+            attempt,
+        )
         return {"answer_uid": answer_uid, "indexed_pairs": indexed}

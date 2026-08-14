@@ -8,12 +8,21 @@ collection.
 from functools import lru_cache
 
 from baymax.clients.vector_store import VectorStore, get_vector_store
+from baymax.common.logging import get_logger
 from baymax.config import get_config
+
+logger = get_logger(__name__)
 
 
 @lru_cache(maxsize=1)
 def get_store() -> VectorStore:
     config = get_config()
+    logger.info(
+        "initializing knowledge vector store collection=%s dimensions=%d distance=%s",
+        config.knowledge_base.collection,
+        config.embedding.dimensions,
+        config.qdrant.distance,
+    )
     return get_vector_store(
         collection=config.knowledge_base.collection,
         vector_size=config.embedding.dimensions,

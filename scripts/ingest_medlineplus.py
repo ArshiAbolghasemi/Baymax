@@ -60,7 +60,6 @@ import argparse
 import hashlib
 import html
 import json
-import logging
 import os
 import re
 import sys
@@ -74,7 +73,9 @@ from typing import Any
 import httpx
 from openai import OpenAI
 
-logger = logging.getLogger("medlineplus")
+from baymax.common.logging import configure_logging, get_logger
+
+logger = get_logger("scripts.ingest_medlineplus")
 
 XML_INDEX_URL = "https://medlineplus.gov/xml.html"
 GENETICS_URL = "https://medlineplus.gov/download/ghr-summaries.xml"
@@ -821,10 +822,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    logging.basicConfig(
-        level=args.log_level.upper(),
-        format="%(asctime)s %(levelname)-8s %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S",
+    os.environ["LOG_LEVEL"] = args.log_level.upper()
+    configure_logging(force=True)
+    logger.info(
+        "medlineplus ingestion started sources=%s dry_run=%s parse_only=%s limit=%d",
+        args.sources,
+        args.dry_run,
+        args.parse_only,
+        args.limit,
     )
 
     if args.list_sources:

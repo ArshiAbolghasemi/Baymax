@@ -78,6 +78,7 @@ def index_qa(
     ``point_uid`` are skipped, so a retry after a partial failure resumes rather
     than duplicating work.
     """
+    logger.debug("loading unindexed pairs answer_uid=%s", answer_uid)
     pairs = repo.list_unindexed_pairs(session, answer_uid)
     if not pairs:
         logger.info("nothing to index for answer uid=%s", answer_uid)
@@ -86,7 +87,14 @@ def index_qa(
     logger.info("indexing answer uid=%s pairs=%d", answer_uid, len(pairs))
 
     texts = [build_pair_text(pair.question.content, pair.answer.content) for pair in pairs]
-    vectors = embedding_client.embed(texts)
+    with log_duration(logger, "embed qa pairs", answer_uid=answer_uid, pairs=len(texts)):
+        vectors = embedding_client.embed(texts)
+    logger.debug(
+        "qa embeddings ready answer_uid=%s vectors=%d dimensions=%d",
+        answer_uid,
+        len(vectors),
+        len(vectors[0]) if vectors else 0,
+    )
 
     points = [
         PointStruct(
@@ -103,9 +111,17 @@ def index_qa(
         for pair, vector in zip(pairs, vectors, strict=True)
     ]
 
-    vector_store.upsert(points)
+    with log_duration(
+        logger,
+        "upsert qa points",
+        answer_uid=answer_uid,
+        collection=vector_store.collection,
+        points=len(points),
+    ):
+        vector_store.upsert(points)
     # Only recorded after Qdrant has acknowledged the write.
-    repo.mark_pairs_indexed(session, {pair.uid: point_uid_for(pair) for pair in pairs})
+    with log_duration(logger, "mark qa pairs indexed", answer_uid=answer_uid, pairs=len(pairs)):
+        repo.mark_pairs_indexed(session, {pair.uid: point_uid_for(pair) for pair in pairs})
 
     logger.info(
         "indexed answer uid=%s pairs=%d collection=%s",
@@ -117,6 +133,7 @@ def index_qa(
 
 
 def get_qa_status(session: Session, answer_uid: uuid.UUID) -> QAStatus:
+    logger.debug("loading qa status answer_uid=%s", answer_uid)
     answer = repo.get_answer(session, answer_uid)
     if answer is None:
         logger.info("answer uid=%s not found", answer_uid)

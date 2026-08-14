@@ -20,13 +20,16 @@ from dynaconf import Dynaconf
 
 from baymax.api.config import ApiConfig
 from baymax.celery.config import CeleryConfig
-from baymax.chat.config import ChatConfig
+from baymax.chat.config import ChatConfig, MedicalToolsConfig
 from baymax.clients.config import EmbeddingConfig, LLMConfig, QdrantConfig
 from baymax.common.env import dynaconf_kwargs
 from baymax.db.config import DatabaseConfig
 from baymax.knowledge_base.config import KnowledgeBaseConfig
 
-DEFAULT_LOG_FORMAT = "%(asctime)s %(levelname)-8s [%(correlation_id)s] %(name)s: %(message)s"
+DEFAULT_LOG_FORMAT = (
+    "{time:YYYY-MM-DDTHH:mm:ss.SSSZ} | {level:<8} | "
+    "[{extra[correlation_id]}] | {extra[component]} | {message}"
+)
 
 # Libraries too chatty to leave at our root level. The openai SDK vendors its
 # transport under the *2 names; without those entries DEBUG drowns in
@@ -59,10 +62,6 @@ class LoggingConfig(Dynaconf):
         return str(self.get("LOG_FORMAT", DEFAULT_LOG_FORMAT))
 
     @property
-    def date_format(self) -> str:
-        return str(self.get("LOG_DATE_FORMAT", "%Y-%m-%dT%H:%M:%S"))
-
-    @property
     def library_levels(self) -> dict[str, str]:
         """Per-logger overrides. Override wholesale with ``LOG_LIBRARY_LEVELS``
         as a JSON object, e.g. ``@json {"httpx": "DEBUG"}``.
@@ -80,6 +79,7 @@ class AppConfig:
     api: ApiConfig
     logging: LoggingConfig
     chat: ChatConfig
+    medical_tools: MedicalToolsConfig
     database: DatabaseConfig
     celery: CeleryConfig
     embedding: EmbeddingConfig
@@ -95,6 +95,7 @@ def get_config() -> AppConfig:
         api=ApiConfig(),
         logging=LoggingConfig(),
         chat=ChatConfig(),
+        medical_tools=MedicalToolsConfig(),
         database=DatabaseConfig(),
         celery=CeleryConfig(),
         embedding=EmbeddingConfig(),
