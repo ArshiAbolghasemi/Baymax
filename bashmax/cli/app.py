@@ -128,6 +128,7 @@ async def run(settings: Settings) -> int:
                     return 0
                 continue
 
+            render.echo_user(line)
             conversation.add_user(line)
             try:
                 stats = await render.stream_reply(

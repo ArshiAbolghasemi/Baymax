@@ -90,6 +90,30 @@ def error(message: str) -> None:
     console.print(f"[bold red]✗[/bold red] [red]{message}[/red]")
 
 
+def echo_user(text: str) -> None:
+    """Redraw the line the user just typed as a bordered turn.
+
+    The terminal already shows the raw input on the prompt line, so that line is
+    erased first — otherwise the message would appear twice, once plain and once
+    boxed. Skipped when output is not a terminal, where the escape codes would
+    be written out literally.
+    """
+    if console.is_terminal:
+        console.file.write("\033[1A\033[2K")
+        console.file.flush()
+
+    console.print(
+        Panel(
+            Text(text),
+            title="you",
+            title_align="left",
+            border_style=MUTED,
+            box=ROUNDED,
+            padding=(0, 1),
+        )
+    )
+
+
 def prompt_text() -> str:
     """The input prompt.
 
@@ -113,12 +137,18 @@ async def stream_reply(chunks: AsyncIterator[str], *, markdown: bool) -> ReplySt
     started = time.perf_counter()
     first_token_s: float | None = None
 
-    console.print(Text("baymax ›", style=f"bold {ACCENT}"))
-
-    status = console.status(f"[{MUTED}]thinking…[/{MUTED}]", spinner="dots")
+    # The badge animates alone until the first token: the guardrail call and
+    # retrieval both run before the model produces anything, so this gap is
+    # seconds, not milliseconds, and an idle terminal would look like a hang.
+    status = console.status(
+        f"[bold {ACCENT}]● baymax[/bold {ACCENT}] [{MUTED}]thinking…[/{MUTED}]",
+        spinner="dots",
+        spinner_style=ACCENT,
+    )
     status.start()
     live: Live | None = None
 
+    stats = ReplyStats(text="", first_token_s=None, total_s=0.0)
     try:
         async for chunk in chunks:
             if live is None:
@@ -128,25 +158,38 @@ async def stream_reply(chunks: AsyncIterator[str], *, markdown: bool) -> ReplySt
                 live.start()
 
             parts.append(chunk)
-            body = "".join(parts)
-            live.update(Markdown(body) if markdown else Text(body))
+            live.update(_reply_panel("".join(parts), markdown=markdown))
+
+        stats = ReplyStats(
+            text="".join(parts),
+            first_token_s=first_token_s,
+            total_s=time.perf_counter() - started,
+        )
+        if live is not None:
+            # Live leaves its final frame on screen, so putting the totals in
+            # that frame avoids reprinting the panel to add them.
+            live.update(_reply_panel(stats.text, markdown=markdown, subtitle=stats.summary))
     finally:
         if live is not None:
             live.stop()
-            # Live leaves the cursor at the end of its last frame; without this
-            # the stats line lands on top of the final line of the reply.
-            console.print()
         else:
             status.stop()
 
-    text = "".join(parts)
-    stats = ReplyStats(
-        text=text, first_token_s=first_token_s, total_s=time.perf_counter() - started
-    )
-
-    if not text:
+    if not stats.text:
         error("the endpoint returned no content")
     else:
-        console.print(f"[{MUTED}]{stats.summary}[/{MUTED}]\n")
-
+        console.print()
     return stats
+
+
+def _reply_panel(body: str, *, markdown: bool, subtitle: str | None = None) -> Panel:
+    return Panel(
+        Markdown(body) if markdown else Text(body),
+        title="baymax",
+        title_align="left",
+        subtitle=f"[{MUTED}]{subtitle}[/{MUTED}]" if subtitle else None,
+        subtitle_align="right",
+        border_style=ACCENT,
+        box=ROUNDED,
+        padding=(0, 1),
+    )
