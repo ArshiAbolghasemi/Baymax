@@ -23,7 +23,7 @@ This repo is two products. Pick **one** based on your machine, then follow only 
 | **Who it is for** | Most GitHub visitors, laptops, no GPU | People with Docker **and** an NVIDIA GPU |
 | **What you get** | Jupyter RAG demo + optional Gradio chat | API + terminal chat (hiro + bashmax) |
 | **Need Docker?** | No | Yes |
-| **Need NVIDIA GPU?** | No (`SKIP_LLM = True` is the default) | Yes, for the vLLM containers |
+| **Need NVIDIA GPU?** | No. Use Ollama `medgemma:4b` for answers | Yes, for the vLLM containers |
 | **Need Python 3.14?** | Any 3.10+ Jupyter kernel is fine | Yes (uv can install it) |
 | **Time to first result** | ~15–30 minutes | ~30–90 minutes (model download) |
 | **Start at** | [Path A](#path-a--notebook-no-docker-no-gpu) | [Path B](#path-b--full-assistant-docker--gpu) |
@@ -59,7 +59,7 @@ Do you have Docker Desktop AND an NVIDIA GPU with ~16 GB VRAM?
 
 ## Path A — notebook (no Docker, no GPU)
 
-You will open `drug.ipynb`, pull a small public corpus, embed it on disk, and ask questions. Generation with MedGemma is **off by default** so a laptop without a GPU does not freeze.
+You will open `drug.ipynb`, pull a small public corpus, embed it on disk, and ask questions. Generation is **off until Ollama MedGemma is running**. That is the laptop-friendly path from the [FreeCodeCamp MedGemma + Ollama guide](https://www.freecodecamp.org/news/build-your-own-healthcare-ai-assistant-with-medgemma-ollama-and-open-webui/). Loading full Hugging Face weights in-process is optional and heavy.
 
 ### A1. Clone
 
@@ -94,36 +94,31 @@ Open the folder in [VS Code](https://code.visualstudio.com/), [Cursor](https://c
 2. Top-right: **Select Kernel** → your Python 3 interpreter.
 3. If the list is empty: **Select Another Kernel → Python Environments**, then pick Python 3.
 
-Colab: Runtime is assigned automatically. You still want `SKIP_LLM = True` unless you attach a GPU runtime.
+Colab: Runtime is assigned automatically. For answers on Colab, either attach a GPU or skip generation (retrieval still works).
 
-### A4. Hugging Face token (only if you will load MedGemma)
+### A4. Optional: local MedGemma via Ollama (recommended for answers)
 
-Skip this on the first run. Retrieval works without it.
+Retrieval works without this. For generated answers on a laptop:
 
-To generate answers later:
-
-1. Create an account at [huggingface.co](https://huggingface.co).
-2. Open [google/medgemma-4b-it](https://huggingface.co/google/medgemma-4b-it), sign in, and **accept the terms**.
-3. Create a [read token](https://huggingface.co/settings/tokens).
-4. In the terminal that will run the kernel:
-
-```bash
-export HF_TOKEN=hf_your_token_here
-```
-
-PowerShell:
+1. Install [Ollama](https://ollama.com/download) (Windows installer is fine).
+2. In a terminal:
 
 ```powershell
-$env:HF_TOKEN = "hf_your_token_here"
+ollama pull medgemma:4b
 ```
 
-Then in the MedGemma cell set `SKIP_LLM = False`.
+3. Confirm the server: open `http://localhost:11434` — you should see `Ollama is running`.
+4. Re-run the notebook's MedGemma cell. `LLM_BACKEND = "auto"` will select Ollama.
+
+The 4B pull is about 3.3 GB and is meant for ~8 GB RAM. Do **not** set the backend to `transformers` unless you have a GPU and a Hugging Face token for [google/medgemma-4b-it](https://huggingface.co/google/medgemma-4b-it).
+
+This is the same local-model idea as the [FreeCodeCamp MedGemma + Ollama guide](https://www.freecodecamp.org/news/build-your-own-healthcare-ai-assistant-with-medgemma-ollama-and-open-webui/). This notebook adds RAG (DailyMed / MedlinePlus / openFDA) on top.
 
 ### A5. Run the cells from the top
 
 1. Run the first **code** cell (`%pip install ...`). Wait until it finishes.
 2. Continue with **Run All**, or Shift+Enter cell by cell.
-3. Leave `SKIP_LLM = True` unless you completed A4 and have enough RAM/VRAM.
+3. If Ollama is not running, generation prints `[LLM skipped]` and still shows retrieved sources.
 
 The first run downloads `intfloat/multilingual-e5-base` (embedding model) and talks to DailyMed / MedlinePlus / openFDA. That needs internet.
 
@@ -132,7 +127,8 @@ The first run downloads `intfloat/multilingual-e5-base` (embedding model) and ta
 - After install: no red traceback, kernel still idle
 - After the loaders: counts such as `DailyMed documents: 5`, `MedlinePlus documents: …`
 - After embeddings: `Vector store ready at .../data/notebook/medical_db`
-- After `medical_chat(...)` with `SKIP_LLM = True`: a stub like `[LLM skipped] Retrieved N passage(s) from …`
+- After the MedGemma cell: `Active backend: ollama` (if A4 is done) or `Active backend: none`
+- After `medical_chat(...)`: a sourced answer, or `[LLM skipped] Retrieved N passage(s) from …`
 
 If the Medicib crawl fails, keep going — the three official APIs are enough to build a corpus.
 
@@ -637,7 +633,7 @@ Issues and pull requests: [https://github.com/ArshiAbolghasemi/Baymax](https://g
 | Notebook `%pip` errors | Internet required; run that cell again |
 | Notebook crawl / Medicib fails | Continue — DailyMed, MedlinePlus, and openFDA still fill the corpus |
 | `RuntimeError: No documents survived` | Check network access to those three APIs |
-| PC freezes on MedGemma | Leave `SKIP_LLM = True` (the notebook default) |
+| PC freezes on MedGemma | Use Ollama `medgemma:4b`, not the Transformers backend |
 | `api.sh` exits on missing env | Copy `hiro/.env.example` → `hiro/.env` and fill the required URLs |
 | `connection refused` on 5432 / 6379 / 6333 | Matching compose file is not up, or the port is already taken |
 | `password authentication failed` | `POSTGRES_*` in `infra/.env` must match `hiro/.env` `DATABASE_URL` |
