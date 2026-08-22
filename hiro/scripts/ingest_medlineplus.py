@@ -73,7 +73,11 @@ from typing import Any
 import httpx
 from openai import OpenAI
 
-from common.logging import configure_logging, get_logger
+# Running this as a file puts scripts/ on sys.path, not the project root, so the
+# ``hiro`` package is invisible until we put its parent there ourselves.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from hiro.common.logging import configure_logging, get_logger
 
 logger = get_logger("scripts.ingest_medlineplus")
 

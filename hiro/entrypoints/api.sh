@@ -58,7 +58,7 @@ else
 fi
 
 args=(
-  uvicorn api.app:app
+  uvicorn hiro.api.app:app
   --host "$API_HOST"
   --port "$API_PORT"
   # Trust X-Forwarded-* so request logs and generated URLs are right behind an

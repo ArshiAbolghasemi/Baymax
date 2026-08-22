@@ -63,7 +63,7 @@ log "starting pool=${CELERY_POOL} concurrency=${CELERY_CONCURRENCY} queues=${CEL
 # exec so celery is PID 1 and its warm-shutdown handler gets SIGTERM directly —
 # with task_acks_late, an interrupted task is redelivered rather than lost.
 exec "${RUNNER[@]}" celery \
-  --app worker.app:celery_app \
+  --app hiro.worker.app:celery_app \
   worker \
   --pool "$CELERY_POOL" \
   --concurrency "$CELERY_CONCURRENCY" \

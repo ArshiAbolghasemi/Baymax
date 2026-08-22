@@ -10,16 +10,16 @@ Two things differ from the generated default:
 from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
-import chat.models
-import knowledge_base.models
-from common.logging import configure_logging, get_logger
-from config import get_config
-from db.base import Base
+import hiro.chat.models
+import hiro.knowledge_base.models
+from hiro.common.logging import configure_logging, get_logger
+from hiro.config import get_config
+from hiro.db.base import Base
 
 #: Importing these registers their tables on ``Base.metadata``. They are listed
 #: here rather than left as bare imports so linters cannot strip them as unused:
 #: without them autogenerate sees no models and emits DROP TABLE for everything.
-MODEL_MODULES = (chat.models, knowledge_base.models)
+MODEL_MODULES = (hiro.chat.models, hiro.knowledge_base.models)
 
 configure_logging()
 logger = get_logger("alembic.env")

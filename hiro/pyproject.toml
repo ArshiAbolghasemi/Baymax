@@ -27,8 +27,8 @@ dev = [
     "ruff==0.16.3",
 ]
 
-# An application, not a library: the top-level packages (api, chat, db, worker,
-# ...) are imported from this directory rather than installed into site-packages.
+# An application, not a library: the single top-level package ``hiro`` is imported
+# from this directory rather than installed into site-packages.
 [tool.uv]
 package = false
 
@@ -53,4 +53,4 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 # FastAPI dependency injection relies on function calls in argument defaults.
-"knowledge_base/router.py" = ["B008"]
+"hiro/knowledge_base/router.py" = ["B008"]
