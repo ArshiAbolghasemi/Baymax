@@ -163,7 +163,7 @@ class McpConfig(Dynaconf):
     @property
     def url(self) -> str:
         """Streamable HTTP endpoint, including the path."""
-        return str(self.get("MCP_URL", "http://localhost:8080/mcp"))
+        return str(self.get("MCP_URL", "http://localhost:8090/mcp"))
 
     @property
     def timeout(self) -> float:
