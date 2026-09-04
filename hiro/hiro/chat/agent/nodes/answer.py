@@ -12,11 +12,17 @@ logger = get_logger(__name__)
 
 
 def build_answer_messages(state: AgentState) -> list[SystemMessage | HumanMessage]:
-    """Fold internal knowledge-base context and history into the prompt."""
+    """Fold instructions, internal knowledge-base context and history into the prompt."""
     config = get_config().chat
+    instructions = state.get("instructions") or []
     documents = state.get("documents") or []
     history = state.get("history") or []
 
+    instruction_block = (
+        "\n".join(f"- {text}" for text in instructions)
+        if instructions
+        else config.no_instructions_text
+    )
     document_block = (
         "\n\n".join(f"[{index}] {text}" for index, text in enumerate(documents, start=1))
         if documents
@@ -26,8 +32,10 @@ def build_answer_messages(state: AgentState) -> list[SystemMessage | HumanMessag
         "\n".join(f"- {text}" for text in history) if history else config.no_history_text
     )
     logger.debug(
-        "answer prompt built question_chars=%d documents=%d document_chars=%d history=%d",
+        "answer prompt built question_chars=%d instructions=%d documents=%d "
+        "document_chars=%d history=%d",
         len(state["question"]),
+        len(instructions),
         len(documents),
         len(document_block),
         len(history),
@@ -45,6 +53,7 @@ def build_answer_messages(state: AgentState) -> list[SystemMessage | HumanMessag
             content=render(
                 config.answer_user_template,
                 "CHAT_ANSWER_USER_TEMPLATE",
+                instructions=instruction_block,
                 documents=document_block,
                 history=history_block,
                 question=state["question"],
@@ -58,7 +67,9 @@ async def answer(state: AgentState) -> AgentState:
     previous_messages = state.get("messages") or []
     messages = previous_messages or build_answer_messages(state)
     logger.info(
-        "answer model step with %d document(s), %d earlier question(s), %d react message(s)",
+        "answer model step with %d instruction(s), %d document(s), %d earlier question(s), "
+        "%d react message(s)",
+        len(state.get("instructions") or []),
         len(state.get("documents") or []),
         len(state.get("history") or []),
         len(previous_messages),

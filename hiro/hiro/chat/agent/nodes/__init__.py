@@ -2,10 +2,11 @@
 
 from hiro.chat.agent.nodes.answer import answer, build_answer_messages
 from hiro.chat.agent.nodes.blocked import blocked
-from hiro.chat.agent.nodes.common import render
+from hiro.chat.agent.nodes.common import render, vector_search
 from hiro.chat.agent.nodes.guardrail import guardrail
 from hiro.chat.agent.nodes.retrieve_documents import retrieve_documents
 from hiro.chat.agent.nodes.retrieve_history import retrieve_history
+from hiro.chat.agent.nodes.retrieve_instructions import retrieve_instructions
 
 __all__ = [
     "answer",
@@ -15,4 +16,6 @@ __all__ = [
     "render",
     "retrieve_documents",
     "retrieve_history",
+    "retrieve_instructions",
+    "vector_search",
 ]

@@ -10,9 +10,9 @@ from langgraph.graph.message import add_messages
 class AgentState(TypedDict, total=False):
     """What the workflow knows as it runs.
 
-    ``documents`` and ``history`` are written by different nodes running in
-    parallel. They are separate keys on purpose: LangGraph only needs a reducer
-    when two concurrent nodes write the *same* key.
+    ``instructions``, ``documents`` and ``history`` are written by different
+    nodes running in parallel. They are separate keys on purpose: LangGraph
+    only needs a reducer when two concurrent nodes write the *same* key.
     """
 
     # Inputs
@@ -23,6 +23,7 @@ class AgentState(TypedDict, total=False):
     allowed: bool
 
     # retrieval, filled concurrently
+    instructions: list[str]
     documents: list[str]
     history: list[str]
 

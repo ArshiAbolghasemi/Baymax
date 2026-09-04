@@ -2,18 +2,13 @@
 
 import asyncio
 
+from hiro.chat.agent.nodes.common import vector_search
 from hiro.chat.agent.state import AgentState
-from hiro.clients.embedding import get_embedding_client
 from hiro.common.logging import get_logger, log_duration
 from hiro.config import get_config
 from hiro.knowledge_base.store import get_store
 
 logger = get_logger(__name__)
-
-
-def _search(question: str, top_k: int) -> list[dict[str, object]]:
-    vector = get_embedding_client().embed([question])[0]
-    return get_store().search(vector, limit=top_k)
 
 
 async def retrieve_documents(state: AgentState) -> AgentState:
@@ -27,7 +22,9 @@ async def retrieve_documents(state: AgentState) -> AgentState:
             question_chars=len(question),
             limit=config.chat.retrieval_top_k,
         ):
-            hits = await asyncio.to_thread(_search, question, config.chat.retrieval_top_k)
+            hits = await asyncio.to_thread(
+                vector_search, get_store(), question, config.chat.retrieval_top_k
+            )
     except Exception:
         logger.exception("document retrieval failed, continuing without context")
         return {"documents": []}

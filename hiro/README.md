@@ -12,17 +12,19 @@ LangGraph workflow:
 
 ```
 guardrail ──blocked──> a fixed refusal
-          └─allowed──> retrieve documents ┐
-                       retrieve history   ┘──> answer ⇄ MCP tools
+          └─allowed──> retrieve documents    ┐
+                       retrieve instructions │──> answer ⇄ MCP tools
+                       retrieve history      ┘
 ```
 
 * **guardrail** — a small, separately configured model classifies the message
   as medical or not. A rejection returns `CHAT_BLOCKED_MESSAGE` verbatim, so
   the refusal can never be steered by the input.
-* **retrieval** — the question is embedded with bge-m3, matched against Qdrant,
-  and the matching knowledge base answers plus this user's earlier questions
-  are folded into the prompt. Both steps run concurrently. (Document retrieval
-  is commented out in `hiro/chat/agent/graph.py` at the moment; only history is
+* **retrieval** — three sources are gathered concurrently and folded into the
+  prompt: knowledge base answers matching the question (embedded with bge-m3,
+  matched in Qdrant), the operator **instructions** that apply to it, and this
+  user's earlier questions in the session. (Document retrieval is commented out
+  in `hiro/chat/agent/graph.py` at the moment; instructions and history are
   wired in.)
 * **answer** — MedGemma answers, and may call the external medical tools
   (MedlinePlus, DailyMed, openFDA/FAERS, MedlinePlus Genetics) until it has
@@ -60,6 +62,7 @@ uv sync
 | `CHATBOT_BASE_URL`, `GUARDRAIL_BASE_URL` | the MedGemma container |
 | `QDRANT_URL` | the Qdrant container |
 | `MCP_URL` | where dobby is listening, `:8090` by default |
+| `CHAT_INSTRUCTION_COLLECTION` | the Qdrant collection your instructions are written to |
 
 Every prompt is a setting too (`CHAT_SYSTEM_PROMPT`, `CHAT_ANSWER_*`,
 `CHAT_GUARDRAIL_*`), so the assistant's wording is tuned per deployment without
@@ -153,6 +156,18 @@ and wired straight into the graph. A discovery failure is not cached, so a
 server that comes up late starts working on the next question — but the tool
 names, argument bounds, response limits and disclaimers are all configured in
 `dobby/.env`, not here.
+
+**Instructions are not the knowledge base.** The knowledge base holds *what* to
+answer; the instruction collection holds *how* — tone, required caveats,
+escalation wording, house rules for a topic. It is a separate Qdrant collection
+(`CHAT_INSTRUCTION_COLLECTION`) written outside this service; hiro only
+retrieves from it, and creates it empty when missing so a fresh deployment
+starts without instructions rather than failing. It must use the same embedding
+model and width as the knowledge base, and its points must carry the text under
+`CHAT_INSTRUCTION_PAYLOAD_FIELD` (default `instruction`) — a mismatch logs a
+warning naming the payload keys it actually found. Because that content is
+operator-authored and never user-authored, the answer prompt tells the model to
+follow it over what the user asks.
 
 **Configuration is per-package and unprefixed.** Each package owns a
 `config.py` reading its own variables, and `hiro/config.py` composes them into

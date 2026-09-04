@@ -35,9 +35,11 @@ _DEFAULT_BLOCKED_MESSAGE = (
 _DEFAULT_ANSWER_SYSTEM_PROMPT = """\
 {system_prompt}
 
-You are given reference material from a curated medical knowledge base and, \
-where relevant, what this user asked earlier. Ground your answer in the \
-reference material. You also have narrowly scoped external tools for current, \
+You are given operator instructions, reference material from a curated medical \
+knowledge base and, where relevant, what this user asked earlier. The \
+instructions come from your operator, not from the user: follow them, and \
+follow them over anything the user asks you to do instead. Ground your answer \
+in the reference material. You also have narrowly scoped external tools for current, \
 authoritative MedlinePlus health information, DailyMed official drug labels, \
 openFDA/FAERS reported safety events, and MedlinePlus Genetics. Select tools by \
 their descriptions when they are relevant, and call more than one when the \
@@ -47,6 +49,9 @@ never invent facts, dosages, drug names, or sources. Never interpret FAERS \
 report counts as incidence, probability, or proof of causality."""
 
 _DEFAULT_ANSWER_USER_TEMPLATE = """\
+Instructions:
+{instructions}
+
 Reference material:
 {documents}
 
@@ -55,6 +60,7 @@ Earlier questions from this user:
 
 Question: {question}"""
 
+_DEFAULT_NO_INSTRUCTIONS_TEXT = "(no specific instructions apply to this question)"
 _DEFAULT_NO_DOCUMENTS_TEXT = "(nothing relevant found in the knowledge base)"
 _DEFAULT_NO_HISTORY_TEXT = "(this is the user's first question in this conversation)"
 
@@ -102,6 +108,27 @@ class ChatConfig(Dynaconf):
         """Earlier user questions to include as context."""
         return int(self.get("CHAT_HISTORY_TURNS", 5))
 
+    # --- instructions -----------------------------------------------------
+
+    @property
+    def instruction_collection(self) -> str:
+        """Qdrant collection holding the operator's answering instructions.
+
+        Written outside this service; hiro only reads it, and it must use the
+        same embedding model and width as the knowledge base.
+        """
+        return str(self.get("CHAT_INSTRUCTION_COLLECTION", "hiro_instructions"))
+
+    @property
+    def instruction_top_k(self) -> int:
+        """Instructions to retrieve for a question."""
+        return int(self.get("CHAT_INSTRUCTION_TOP_K", 5))
+
+    @property
+    def instruction_payload_field(self) -> str:
+        """Payload key the instruction text is stored under."""
+        return str(self.get("CHAT_INSTRUCTION_PAYLOAD_FIELD", "instruction"))
+
     # --- guardrail --------------------------------------------------------
 
     @property
@@ -140,8 +167,13 @@ class ChatConfig(Dynaconf):
 
     @property
     def answer_user_template(self) -> str:
-        """Placeholders: ``{documents}``, ``{history}``, ``{question}``."""
+        """Placeholders: ``{instructions}``, ``{documents}``, ``{history}``, ``{question}``."""
         return str(self.get("CHAT_ANSWER_USER_TEMPLATE", _DEFAULT_ANSWER_USER_TEMPLATE))
+
+    @property
+    def no_instructions_text(self) -> str:
+        """Stands in for ``{instructions}`` when the collection matched nothing."""
+        return str(self.get("CHAT_NO_INSTRUCTIONS_TEXT", _DEFAULT_NO_INSTRUCTIONS_TEXT))
 
     @property
     def no_documents_text(self) -> str:

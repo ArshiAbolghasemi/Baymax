@@ -52,8 +52,9 @@ def assistant_text(message: object) -> str:
 ANSWER_NODE = "answer"
 BLOCKED_NODE = "blocked"
 RETRIEVAL_NODES = [
-    # "retrieve_documents",
-    "retrieve_history"
+    "retrieve_documents",
+    "retrieve_instructions",
+    "retrieve_history",
 ]
 TOOLS_NODE = "external_tools"
 
@@ -102,6 +103,7 @@ async def get_graph():
     builder.add_node("guardrail", nodes.guardrail)
     builder.add_node(BLOCKED_NODE, nodes.blocked)
     # builder.add_node("retrieve_documents", nodes.retrieve_documents)
+    builder.add_node("retrieve_instructions", nodes.retrieve_instructions)
     builder.add_node("retrieve_history", nodes.retrieve_history)
     builder.add_node(ANSWER_NODE, nodes.answer)
     builder.add_node(TOOLS_NODE, ToolNode(tools))
