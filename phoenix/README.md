@@ -47,9 +47,11 @@ the repository. From then on, edit prompts in Phoenix, not in the script.
 | `hiro-no-documents` | stands in when retrieval found nothing |
 | `hiro-no-history` | stands in on the first turn of a conversation |
 
-Those identifiers are the contract with the code; they are constants in
-`hiro/hiro/chat/prompts.py`, shared with the seeding script. Renaming a prompt
-in Phoenix without changing that module breaks the fetch.
+Those names are configuration, not constants: the `CHAT_PROMPT_*` settings in
+`hiro/.env` (defaults in `hiro/hiro/chat/config.py`), read by both the workflow
+and the seeding script. Renaming a prompt in Phoenix means changing the
+matching variable — otherwise the fetch looks for a name that is no longer
+there.
 
 Templates are **mustache**: `{{question}}`, not `{question}`.
 
