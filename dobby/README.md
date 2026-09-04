@@ -15,6 +15,13 @@ and disclaimers.
 | `search_drug_safety` | `drug_name`, `limit` | `{drug, reported_events[], seriousness_counts[], report_date_range, boundary_reports[], disclaimer}` |
 | `search_genetics` | `query` | `{query, results[{name, type, summary, related_genes, related_conditions, inheritance}]}` |
 
+Detailed usage and response documentation:
+
+- [`search_health_info`](docs/tools/search_health_info.md)
+- [`search_drug_label`](docs/tools/search_drug_label.md)
+- [`search_drug_safety`](docs/tools/search_drug_safety.md)
+- [`search_genetics`](docs/tools/search_genetics.md)
+
 Every result also carries `status`, `source`, `url`, and `error` when the
 retrieval failed. The sources are MedlinePlus, DailyMed, openFDA/FAERS and
 MedlinePlus Genetics; none of them needs an API key.
@@ -32,6 +39,7 @@ internal/httpx                  outbound HTTP: timeouts and bounded retries
 internal/tools                  one file per tool, plus the shared registry
 internal/medline                parsing for the NLM service both MedlinePlus tools use
 internal/textutil               markup stripping and length budgets
+docs/tools                      usage and response reference for each MCP tool
 ```
 
 ## Configuration
