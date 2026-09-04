@@ -18,6 +18,10 @@ services:
       - PHOENIX_WORKING_DIR=/mnt/data
     volumes:
       - phoenix_data:/mnt/data
+    # Docker Desktop resolves host.docker.internal already; this adds it on Linux,
+    # so OPENAI_BASE_URL reaches hiro on the host either way.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006/healthz')"]
       interval: 15s
