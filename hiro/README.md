@@ -53,7 +53,6 @@ so ingestion returns `202` immediately.
 cp .env.example .env      # then align it with infra/.env
 uv sync
 ./entrypoints/migrate.sh
-uv run python scripts/seed_prompts.py --tag production   # once, into a fresh Phoenix
 ```
 
 `.env.example` documents every variable. The ones you must get right:
@@ -67,7 +66,7 @@ uv run python scripts/seed_prompts.py --tag production   # once, into a fresh Ph
 | `QDRANT_URL` | the Qdrant container |
 | `MCP_URL` | where dobby is listening, `:8090` by default |
 | `CHAT_INSTRUCTION_COLLECTION` | the Qdrant collection your instructions are written to |
-| `PHOENIX_BASE_URL` | the Phoenix container, `:6006` by default |
+| `PHOENIX_BASE_URL` | the Phoenix container — defaults to `:6006`, so only set it if Phoenix is elsewhere |
 
 No prompt is a setting, and none has a default in the code: the wording all
 lives in Phoenix. `PHOENIX_PROMPT_TAG` decides which version is read — empty

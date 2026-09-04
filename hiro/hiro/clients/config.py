@@ -189,17 +189,21 @@ class GuardrailConfig(Dynaconf):
 class PhoenixConfig(Dynaconf):
     """Arize Phoenix, the store of record for every prompt.
 
-    REQUIRED: hiro ships no prompt text, so there is nothing to answer with
-    when this is unreachable. Prompt identifiers are not settings — they are
-    constants in :mod:`hiro.chat.prompts`, shared with the seeding script.
+    hiro ships no prompt text, so there is nothing to answer with when this is
+    unreachable. Which prompt each step fetches is configured in
+    :class:`~hiro.chat.config.ChatConfig` as ``CHAT_PROMPT_*``.
+
+    Only the API key has no default: it is a secret, and an empty one is the
+    right value against a Phoenix running without auth.
     """
 
     def __init__(self) -> None:
-        super().__init__(**dynaconf_kwargs([Validator("PHOENIX_BASE_URL", must_exist=True)]))
+        super().__init__(**dynaconf_kwargs())
 
     @property
     def base_url(self) -> str:
-        return str(self.get("PHOENIX_BASE_URL"))
+        """The Phoenix container, from ../phoenix/phoenix.yml."""
+        return str(self.get("PHOENIX_BASE_URL", "http://localhost:6006"))
 
     @property
     def api_key(self) -> str:
