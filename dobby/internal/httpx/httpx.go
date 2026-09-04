@@ -150,14 +150,14 @@ func retry(ctx context.Context, client *http.Client, source, target string) ([]b
 		retrygo.RetryIf(retryable),
 		retrygo.Context(ctx),
 		retrygo.LastErrorOnly(true),
-		retrygo.OnRetry(func(attempt uint, err error) {
-			if attempt >= uint(config.Conf.HTTPMaxRetries) {
+		retrygo.OnRetry(func(retry uint, err error) {
+			if retry >= uint(config.Conf.HTTPMaxRetries) {
 				return
 			}
 
 			logging.Logger.Warn("retrying an upstream request",
 				zap.String("source", source),
-				zap.Int("attempt", int(attempt)+2),
+				zap.Int("attempt", attempt+1),
 				zap.Int("status_code", StatusOf(err)),
 				zap.Error(err),
 			)
