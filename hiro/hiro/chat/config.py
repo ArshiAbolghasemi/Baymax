@@ -53,7 +53,7 @@ class ChatConfig(Dynaconf):
     #
     # Which Phoenix prompt each step fetches. The text itself is never here —
     # see hiro/chat/prompts.py. Renaming a prompt in Phoenix means changing the
-    # matching variable, and reseeding with scripts/seed_prompts.py.
+    # matching variable.
 
     @property
     def prompt_answer(self) -> str:

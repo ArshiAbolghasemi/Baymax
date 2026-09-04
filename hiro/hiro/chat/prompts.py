@@ -7,8 +7,7 @@ without a deploy.
 
 That also means Phoenix is a hard dependency of answering: if it is down or a
 prompt is missing, the run fails rather than falling back to something
-plausible — there is nothing to fall back to, by design. ``scripts/seed_prompts.py``
-creates all six with their original wording.
+plausible — there is nothing to fall back to, by design.
 
 Which prompt each step fetches is configuration — the ``CHAT_PROMPT_*``
 settings on :class:`~hiro.chat.config.ChatConfig`. That name is the one thing

@@ -58,7 +58,6 @@ docker compose -f phoenix.yml up -d                     # UI on :6006
 # 4. the service
 cd ../hiro && cp .env.example .env     # must agree with infra/.env
 uv sync && ./entrypoints/migrate.sh
-uv run python scripts/seed_prompts.py --tag production  # creates the six prompts
 ./entrypoints/api.sh                   # :8080, docs at /docs
 ./entrypoints/celery.sh                # in another shell
 

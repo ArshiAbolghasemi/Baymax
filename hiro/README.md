@@ -176,8 +176,7 @@ prompts from Phoenix per turn — by the identifiers the `CHAT_PROMPT_*` setting
 name, and there is nothing to fall back to when that
 fails — a missing prompt or an unreachable Phoenix fails the run rather than
 answering with something the operator never wrote. The guardrail fails closed,
-so an outage blocks questions instead of admitting them. The original wording
-is in `scripts/seed_prompts.py`, which exists to put it into Phoenix once.
+so an outage blocks questions instead of admitting them.
 
 **Instructions are not the knowledge base.** The knowledge base holds *what* to
 answer; the instruction collection holds *how* — tone, required caveats,
