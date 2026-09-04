@@ -1,8 +1,8 @@
 {#
   Gemma-style conversation wrapper with Hermes JSON tool-call tags.
 
-  MedGemma 4B is not a native function-calling checkpoint. This template puts
-  the OpenAI tool schemas and serialization contract into its first user turn;
+  MedGemma is not a native function-calling checkpoint. This template puts the
+  OpenAI tool schemas and serialization contract into its first user turn;
   vLLM's Hermes parser converts compliant <tool_call> output into the standard
   OpenAI `tool_calls` response consumed by LangChain.
 #}

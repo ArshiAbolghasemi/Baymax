@@ -44,7 +44,9 @@ Each file is independent; start only what you need.
 docker compose -f database/postgres/postgres.yml up -d
 docker compose -f database/redis/redis.yml up -d
 docker compose -f vector-store/qdrant/qdrant.yml up -d
-docker compose -f llm-serving/vllm/med-gemma-4b/med-gemma-4b.yml up -d
+docker compose -f llm-serving/vllm/med-gemma/med-gemma-4b.yml up -d
+# Or run the larger text model:
+docker compose -f llm-serving/vllm/med-gemma/med-gemma-27b.yml up -d
 docker compose -f llm-serving/vllm/bge-m3/bge-m3.yml up -d
 ```
 
