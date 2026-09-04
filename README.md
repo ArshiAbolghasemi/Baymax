@@ -16,6 +16,7 @@ in the path.
 | [`hiro`](hiro/README.md) | Python | The service. The knowledge base, the agentic workflow that answers a question, and the OpenAI-compatible HTTP API both are exposed through, plus a Celery worker for indexing. |
 | [`dobby`](dobby/README.md) | Go | The MCP server. Owns every external medical tool — their names, limits and disclaimers — and exposes them to any MCP client, hiro's agent included. |
 | [`bashmax`](bashmax) | Python | The terminal client. A streaming chat UI against hiro's API and nothing else: no database, no model, no credentials. |
+| [`phoenix`](phoenix/README.md) | Compose | [Arize Phoenix](https://github.com/Arize-ai/phoenix), the store of record for every prompt hiro sends. The wording lives there, not in the code, and is edited without a deploy. |
 | [`infra`](infra/README.md) | Compose | Everything the above run on: Postgres, Redis, Qdrant, and vLLM serving MedGemma-4B and bge-m3. |
 
 They talk over the network only, so any one of them can be replaced or run
@@ -24,6 +25,7 @@ elsewhere:
 ```
 bashmax ──HTTP──> hiro ──MCP──> dobby ──HTTPS──> MedlinePlus, DailyMed, openFDA
                     │
+                    ├─> Phoenix (prompts)
                     └─> Postgres · Redis · Qdrant · vLLM (MedGemma, bge-m3)
 ```
 
@@ -42,20 +44,25 @@ cd infra && cp .env.example .env      # fill in the token and passwords
 docker compose -f database/postgres/postgres.yml up -d
 docker compose -f database/redis/redis.yml up -d
 docker compose -f vector-store/qdrant/qdrant.yml up -d
-docker compose -f llm-serving/vllm/med-gemma-4b/med-gemma-4b.yml up -d
+docker compose -f llm-serving/vllm/med-gemma/med-gemma-4b.yml up -d
 docker compose -f llm-serving/vllm/bge-m3/bge-m3.yml up -d
 
 # 2. the medical tools — no database, no credentials, every source is public
 cd ../dobby && cp .env.example .env
 go build -o bin/dobby ./cmd/dobby && ./bin/dobby        # MCP on :8090/mcp
 
-# 3. the service
+# 3. prompts — hiro ships none, so this must be up and seeded before it answers
+cd ../phoenix && cp .env.example .env
+docker compose -f phoenix.yml up -d                     # UI on :6006
+
+# 4. the service
 cd ../hiro && cp .env.example .env     # must agree with infra/.env
 uv sync && ./entrypoints/migrate.sh
+uv run python scripts/seed_prompts.py --tag production  # creates the six prompts
 ./entrypoints/api.sh                   # :8080, docs at /docs
 ./entrypoints/celery.sh                # in another shell
 
-# 4. ask it something
+# 5. ask it something
 cd ../bashmax && cp .env.example .env && ./entrypoints/chat.sh
 ```
 
@@ -66,9 +73,9 @@ usage in full.
 
 ## Ports
 
-| 5432 | 6379 | 6333 | 8000 | 8001 | 8080 | 8090 | 2112 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Postgres | Redis | Qdrant | MedGemma | bge-m3 | hiro API | dobby MCP | dobby metrics |
+| 5432 | 6379 | 6333 | 6006 | 8000 | 8001 | 8080 | 8090 | 2112 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Postgres | Redis | Qdrant | Phoenix | MedGemma | bge-m3 | hiro API | dobby MCP | dobby metrics |
 
 ## License
 
