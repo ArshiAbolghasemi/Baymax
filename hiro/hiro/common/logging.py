@@ -1,4 +1,10 @@
-"""OpenTelemetry logging with request/task correlation and structured context."""
+"""Loguru-based application logging with request/task correlation.
+
+Application modules use :func:`get_logger`. Standard-library records emitted by
+Uvicorn, Celery, SQLAlchemy, OpenAI, and other dependencies are intercepted and
+forwarded to the same Loguru sink, so one correlation id and format cover the
+whole process.
+"""
 
 import logging
 import sys
@@ -7,18 +13,15 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from typing import Any
 
-from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.sdk.resources import Resource
+from loguru import logger as _loguru_logger
 
 from hiro.config import get_config
 
 correlation_id: ContextVar[str] = ContextVar("correlation_id", default="-")
 
 _configured = False
-_provider: LoggerProvider | None = None
 
 
 def new_correlation_id() -> str:
@@ -36,25 +39,55 @@ def bind_correlation_id(value: str | None = None) -> Iterator[str]:
         correlation_id.reset(token)
 
 
-class ContextFilter(logging.Filter):
-    """Attach shared context before console and OTLP handlers read a record."""
+def _patch_record(record: dict[str, Any]) -> None:
+    record["extra"]["correlation_id"] = correlation_id.get()
+    record["extra"].setdefault("component", record["name"])
 
-    def filter(self, record: logging.LogRecord) -> bool:
-        record.correlation_id = correlation_id.get()
-        if not hasattr(record, "component"):
-            record.component = record.name
-        return True
+
+class InterceptHandler(logging.Handler):
+    """Forward standard-library records into Loguru."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level: str | int = _loguru_logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        frame = logging.currentframe()
+        depth = 2
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        _loguru_logger.bind(component=record.name).opt(
+            depth=depth,
+            exception=record.exc_info,
+        ).log(level, record.getMessage())
 
 
 class AppLogger:
-    """Logging façade that adds bindable structured attributes."""
+    """Small compatibility façade backed entirely by Loguru.
 
-    def __init__(self, logger: logging.Logger, context: dict[str, object] | None = None) -> None:
-        self._logger = logger
-        self._context = context or {}
+    It accepts the repository's existing ``logging``-style ``%s`` arguments,
+    allowing the backend migration without losing call-site information.
+    New code can bind structured context with :meth:`bind`.
+    """
+
+    def __init__(self, bound_logger: Any) -> None:
+        self._logger = bound_logger
+
+    @staticmethod
+    def _message(message: object, args: tuple[object, ...]) -> str:
+        text = str(message)
+        if not args:
+            return text
+        try:
+            return text % args
+        except TypeError, ValueError:
+            return " ".join((text, *(str(arg) for arg in args)))
 
     def bind(self, **context: object) -> AppLogger:
-        return AppLogger(self._logger, self._context | context)
+        return AppLogger(self._logger.bind(**context))
 
     def log(
         self,
@@ -63,65 +96,50 @@ class AppLogger:
         *args: object,
         exc_info: object = False,
     ) -> None:
-        if isinstance(level, str):
-            level = logging.getLevelNamesMapping().get(level.upper(), logging.INFO)
-        self._logger.log(
-            level,
-            message,
-            *args,
-            exc_info=exc_info,
-            extra={"component": self._logger.name} | self._context,
-            stacklevel=2,
-        )
+        if isinstance(level, int):
+            level = logging.getLevelName(level)
+        self._logger.opt(exception=exc_info).log(level, self._message(message, args))
 
     def debug(self, message: object, *args: object, exc_info: object = False) -> None:
-        self.log(logging.DEBUG, message, *args, exc_info=exc_info)
+        self.log("DEBUG", message, *args, exc_info=exc_info)
 
     def info(self, message: object, *args: object, exc_info: object = False) -> None:
-        self.log(logging.INFO, message, *args, exc_info=exc_info)
+        self.log("INFO", message, *args, exc_info=exc_info)
 
     def warning(self, message: object, *args: object, exc_info: object = False) -> None:
-        self.log(logging.WARNING, message, *args, exc_info=exc_info)
+        self.log("WARNING", message, *args, exc_info=exc_info)
 
     def error(self, message: object, *args: object, exc_info: object = False) -> None:
-        self.log(logging.ERROR, message, *args, exc_info=exc_info)
+        self.log("ERROR", message, *args, exc_info=exc_info)
 
     def exception(self, message: object, *args: object) -> None:
-        self.log(logging.ERROR, message, *args, exc_info=True)
+        self.log("ERROR", message, *args, exc_info=True)
 
 
 def configure_logging(*, force: bool = False) -> None:
-    """Configure console logging and batched OTLP/HTTP export once per process."""
-    global _configured, _provider
+    """Configure Loguru and intercept standard-library logging once per process."""
+    global _configured
     if _configured and not force:
         return
-    if _provider is not None:
-        _provider.shutdown()
 
     config = get_config().logging
-    context_filter = ContextFilter()
-
-    console = logging.StreamHandler(sys.stderr)
-    console.setFormatter(logging.Formatter(config.format))
-    console.addFilter(context_filter)
-
-    _provider = LoggerProvider(
-        resource=Resource.create(
-            {
-                "service.name": config.service_name,
-                "service.version": config.service_version,
-            }
-        )
+    _loguru_logger.remove()
+    _loguru_logger.configure(
+        extra={"correlation_id": "-", "component": "-"},
+        patcher=_patch_record,
     )
-    _provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
-
-    otlp = LoggingHandler(level=config.level, logger_provider=_provider)
-    otlp.addFilter(context_filter)
+    _loguru_logger.add(
+        sys.stderr,
+        level=config.level,
+        format=config.format,
+        backtrace=False,
+        diagnose=False,
+        enqueue=False,
+    )
 
     root = logging.getLogger()
     root.handlers.clear()
-    root.addHandler(console)
-    root.addHandler(otlp)
+    root.addHandler(InterceptHandler())
     root.setLevel(config.level)
 
     for name, level in config.library_levels.items():
@@ -133,20 +151,11 @@ def configure_logging(*, force: bool = False) -> None:
         external_logger.propagate = True
 
     _configured = True
-    get_logger(__name__).debug("logging configured backend=opentelemetry level=%s", config.level)
-
-
-def shutdown_logging() -> None:
-    """Flush pending OpenTelemetry logs and stop the exporter."""
-    global _configured, _provider
-    if _provider is not None:
-        _provider.shutdown()
-        _provider = None
-    _configured = False
+    get_logger(__name__).debug("logging configured backend=loguru level=%s", config.level)
 
 
 def get_logger(name: str) -> AppLogger:
-    return AppLogger(logging.getLogger(name))
+    return AppLogger(_loguru_logger.bind(component=name))
 
 
 @contextmanager

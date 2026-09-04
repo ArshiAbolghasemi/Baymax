@@ -67,7 +67,6 @@ uv sync
 | `MCP_URL` | where dobby is listening, `:8090` by default |
 | `CHAT_INSTRUCTION_COLLECTION` | the Qdrant collection your instructions are written to |
 | `PHOENIX_BASE_URL` | the Phoenix container — defaults to `:6006`, so only set it if Phoenix is elsewhere |
-| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | an OTLP/HTTP collector endpoint ending in `/v1/logs` |
 
 No prompt is a setting, and none has a default in the code: the wording all
 lives in Phoenix. `PHOENIX_PROMPT_TAG` decides which version is read — empty
@@ -85,11 +84,6 @@ API_RELOAD=true ./entrypoints/api.sh    # auto-reload while developing
 Both apply pending migrations first (`RUN_MIGRATIONS=false` to skip) and both
 load `.env` themselves, so no `uv run` prefix and no `export` is needed. Port
 8080 because 8000 and 8001 belong to the vLLM containers.
-
-Application and third-party logs are written to stderr and exported in batches
-over OTLP/HTTP. OpenTelemetry resource fields identify the `hiro` service, while
-`correlation_id`, `component`, and values added with `logger.bind(...)` are log
-attributes. Standard `OTEL_EXPORTER_OTLP_LOGS_*` variables configure the exporter.
 
 Schema changes:
 

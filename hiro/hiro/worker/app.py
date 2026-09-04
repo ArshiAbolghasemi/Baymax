@@ -21,10 +21,9 @@ from celery.signals import (
     task_prerun,
     task_retry,
     worker_process_init,
-    worker_shutdown,
 )
 
-from hiro.common.logging import configure_logging, get_logger, shutdown_logging
+from hiro.common.logging import configure_logging, get_logger
 from hiro.config import get_config
 from hiro.db.session import dispose_engine
 
@@ -68,11 +67,6 @@ def _configure_worker_logging(**_: Any) -> None:
 def _reset_engine_after_fork(**_: Any) -> None:
     """Never share a pooled connection across a fork."""
     dispose_engine()
-
-
-@worker_shutdown.connect
-def _shutdown_worker_logging(**_: Any) -> None:
-    shutdown_logging()
 
 
 @task_prerun.connect

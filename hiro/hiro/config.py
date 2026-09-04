@@ -33,7 +33,8 @@ from hiro.knowledge_base.config import KnowledgeBaseConfig
 from hiro.worker.config import CeleryConfig
 
 DEFAULT_LOG_FORMAT = (
-    "%(asctime)s | %(levelname)-8s | [%(correlation_id)s] | %(component)s | %(message)s"
+    "{time:YYYY-MM-DDTHH:mm:ss.SSSZ} | {level:<8} | "
+    "[{extra[correlation_id]}] | {extra[component]} | {message}"
 )
 
 # Libraries too chatty to leave at our root level. The openai SDK vendors its
@@ -65,14 +66,6 @@ class LoggingConfig(Dynaconf):
     @property
     def format(self) -> str:
         return str(self.get("LOG_FORMAT", DEFAULT_LOG_FORMAT))
-
-    @property
-    def service_name(self) -> str:
-        return str(self.get("OTEL_SERVICE_NAME", "hiro"))
-
-    @property
-    def service_version(self) -> str:
-        return str(self.get("API_VERSION", "0.1.0"))
 
     @property
     def library_levels(self) -> dict[str, str]:

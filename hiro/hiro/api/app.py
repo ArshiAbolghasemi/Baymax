@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from hiro.api.middleware import CorrelationIdMiddleware
 from hiro.api.schemas import HealthResponse
 from hiro.chat.router import router as chat_router
-from hiro.common.logging import configure_logging, get_logger, shutdown_logging
+from hiro.common.logging import configure_logging, get_logger
 from hiro.config import get_config
 from hiro.db.session import dispose_async_engine
 from hiro.knowledge_base.router import router as knowledge_base_router
@@ -67,7 +67,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     await dispose_async_engine()
     logger.info("shutting down")
-    shutdown_logging()
 
 
 def create_app() -> FastAPI:
