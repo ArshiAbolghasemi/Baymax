@@ -71,12 +71,6 @@ The knowledge base starts empty; fill it with
 `/v1/knowledge-base/qa`. Each project's README covers its own configuration and
 usage in full.
 
-## Ports
-
-| 5432 | 6379 | 6333 | 6006 | 8000 | 8001 | 8080 | 8090 | 2112 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Postgres | Redis | Qdrant | Phoenix | MedGemma | bge-m3 | hiro API | dobby MCP | dobby metrics |
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
