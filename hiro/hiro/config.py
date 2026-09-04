@@ -20,7 +20,13 @@ from dynaconf import Dynaconf
 
 from hiro.api.config import ApiConfig
 from hiro.chat.config import ChatConfig, McpConfig
-from hiro.clients.config import ChatbotConfig, EmbeddingConfig, GuardrailConfig, QdrantConfig
+from hiro.clients.config import (
+    ChatbotConfig,
+    EmbeddingConfig,
+    GuardrailConfig,
+    PhoenixConfig,
+    QdrantConfig,
+)
 from hiro.common.env import dynaconf_kwargs
 from hiro.db.config import DatabaseConfig
 from hiro.knowledge_base.config import KnowledgeBaseConfig
@@ -86,6 +92,7 @@ class AppConfig:
     chatbot: ChatbotConfig
     guardrail: GuardrailConfig
     qdrant: QdrantConfig
+    phoenix: PhoenixConfig
     knowledge_base: KnowledgeBaseConfig
 
 
@@ -103,5 +110,6 @@ def get_config() -> AppConfig:
         chatbot=ChatbotConfig(),
         guardrail=GuardrailConfig(),
         qdrant=QdrantConfig(),
+        phoenix=PhoenixConfig(),
         knowledge_base=KnowledgeBaseConfig(),
     )

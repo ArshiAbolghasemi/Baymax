@@ -18,7 +18,7 @@ guardrail ──blocked──> a fixed refusal
 ```
 
 * **guardrail** — a small, separately configured model classifies the message
-  as medical or not. A rejection returns `CHAT_BLOCKED_MESSAGE` verbatim, so
+  as medical or not. A rejection returns the `hiro-blocked` prompt verbatim, so
   the refusal can never be steered by the input.
 * **retrieval** — three sources are gathered concurrently and folded into the
   prompt: knowledge base answers matching the question (embedded with bge-m3,
@@ -43,6 +43,9 @@ so ingestion returns `202` immediately.
 * The `dobby` MCP server, for the external medical tools. Without it the
   workflow still answers from the knowledge base, but the first tool discovery
   fails per question — start it.
+* **Phoenix**, seeded. Every prompt is fetched from it per turn and none ships
+  in the code, so hiro cannot answer at all until it is up and seeded. See
+  `../phoenix/README.md`.
 
 ## Setup
 
@@ -50,6 +53,7 @@ so ingestion returns `202` immediately.
 cp .env.example .env      # then align it with infra/.env
 uv sync
 ./entrypoints/migrate.sh
+uv run python scripts/seed_prompts.py --tag production   # once, into a fresh Phoenix
 ```
 
 `.env.example` documents every variable. The ones you must get right:
@@ -63,12 +67,12 @@ uv sync
 | `QDRANT_URL` | the Qdrant container |
 | `MCP_URL` | where dobby is listening, `:8090` by default |
 | `CHAT_INSTRUCTION_COLLECTION` | the Qdrant collection your instructions are written to |
+| `PHOENIX_BASE_URL` | the Phoenix container, `:6006` by default |
 
-Every prompt is a setting too (`CHAT_SYSTEM_PROMPT`, `CHAT_ANSWER_*`,
-`CHAT_GUARDRAIL_*`), so the assistant's wording is tuned per deployment without
-a code change. The multi-line ones are better set through a ConfigMap or an
-exported variable than through `.env`; their shipped defaults are the
-`_DEFAULT_*` constants in `hiro/chat/config.py`.
+No prompt is a setting, and none has a default in the code: the wording all
+lives in Phoenix. `PHOENIX_PROMPT_TAG` decides which version is read — empty
+takes the latest, so a UI edit is live on the next question; `production` (or
+any tag) pins hiro to a reviewed version.
 
 ## Running
 
@@ -156,6 +160,14 @@ and wired straight into the graph. A discovery failure is not cached, so a
 server that comes up late starts working on the next question — but the tool
 names, argument bounds, response limits and disclaimers are all configured in
 `dobby/.env`, not here.
+
+**There are no prompt defaults.** `hiro/chat/prompts.py` fetches all six
+prompts from Phoenix per turn — by the identifiers the `CHAT_PROMPT_*` settings
+name, and there is nothing to fall back to when that
+fails — a missing prompt or an unreachable Phoenix fails the run rather than
+answering with something the operator never wrote. The guardrail fails closed,
+so an outage blocks questions instead of admitting them. The original wording
+is in `scripts/seed_prompts.py`, which exists to put it into Phoenix once.
 
 **Instructions are not the knowledge base.** The knowledge base holds *what* to
 answer; the instruction collection holds *how* — tone, required caveats,

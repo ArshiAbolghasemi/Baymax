@@ -184,3 +184,29 @@ class GuardrailConfig(Dynaconf):
     @property
     def max_tokens(self) -> int:
         return int(self.get("GUARDRAIL_MAX_TOKENS", 4))
+
+
+class PhoenixConfig(Dynaconf):
+    """Arize Phoenix, the store of record for every prompt.
+
+    REQUIRED: hiro ships no prompt text, so there is nothing to answer with
+    when this is unreachable. Prompt identifiers are not settings — they are
+    constants in :mod:`hiro.chat.prompts`, shared with the seeding script.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(**dynaconf_kwargs([Validator("PHOENIX_BASE_URL", must_exist=True)]))
+
+    @property
+    def base_url(self) -> str:
+        return str(self.get("PHOENIX_BASE_URL"))
+
+    @property
+    def api_key(self) -> str:
+        """Only needed when Phoenix runs with auth enabled."""
+        return str(self.get("PHOENIX_API_KEY", ""))
+
+    @property
+    def prompt_tag(self) -> str:
+        """Version tag to read, e.g. ``production``. Empty reads the latest version."""
+        return str(self.get("PHOENIX_PROMPT_TAG", ""))

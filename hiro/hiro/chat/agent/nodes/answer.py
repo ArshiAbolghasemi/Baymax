@@ -1,9 +1,9 @@
 """Prompt construction and ReAct answer-model node."""
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage
 
+from hiro.chat import prompts
 from hiro.chat.agent.models import get_answer_model, get_answer_tool_schemas
-from hiro.chat.agent.nodes.common import render
 from hiro.chat.agent.state import AgentState
 from hiro.common.logging import get_logger, log_duration
 from hiro.config import get_config
@@ -11,8 +11,12 @@ from hiro.config import get_config
 logger = get_logger(__name__)
 
 
-def build_answer_messages(state: AgentState) -> list[SystemMessage | HumanMessage]:
-    """Fold instructions, internal knowledge-base context and history into the prompt."""
+async def build_answer_messages(state: AgentState) -> list[BaseMessage]:
+    """Fold instructions, internal knowledge-base context and history into the prompt.
+
+    The blocks are assembled here; the prompt they are substituted into — and
+    the stand-in text for an empty one — comes from Phoenix.
+    """
     config = get_config().chat
     instructions = state.get("instructions") or []
     documents = state.get("documents") or []
@@ -21,15 +25,17 @@ def build_answer_messages(state: AgentState) -> list[SystemMessage | HumanMessag
     instruction_block = (
         "\n".join(f"- {text}" for text in instructions)
         if instructions
-        else config.no_instructions_text
+        else await prompts.get_text(config.prompt_no_instructions)
     )
     document_block = (
         "\n\n".join(f"[{index}] {text}" for index, text in enumerate(documents, start=1))
         if documents
-        else config.no_documents_text
+        else await prompts.get_text(config.prompt_no_documents)
     )
     history_block = (
-        "\n".join(f"- {text}" for text in history) if history else config.no_history_text
+        "\n".join(f"- {text}" for text in history)
+        if history
+        else await prompts.get_text(config.prompt_no_history)
     )
     logger.debug(
         "answer prompt built question_chars=%d instructions=%d documents=%d "
@@ -41,31 +47,19 @@ def build_answer_messages(state: AgentState) -> list[SystemMessage | HumanMessag
         len(history),
     )
 
-    return [
-        SystemMessage(
-            content=render(
-                config.answer_system_prompt,
-                "CHAT_ANSWER_SYSTEM_PROMPT",
-                system_prompt=config.system_prompt,
-            )
-        ),
-        HumanMessage(
-            content=render(
-                config.answer_user_template,
-                "CHAT_ANSWER_USER_TEMPLATE",
-                instructions=instruction_block,
-                documents=document_block,
-                history=history_block,
-                question=state["question"],
-            )
-        ),
-    ]
+    return await prompts.get_messages(
+        config.prompt_answer,
+        instructions=instruction_block,
+        documents=document_block,
+        history=history_block,
+        question=state["question"],
+    )
 
 
 async def answer(state: AgentState) -> AgentState:
     """Run one model step in the ReAct loop."""
     previous_messages = state.get("messages") or []
-    messages = previous_messages or build_answer_messages(state)
+    messages = previous_messages or await build_answer_messages(state)
     logger.info(
         "answer model step with %d instruction(s), %d document(s), %d earlier question(s), "
         "%d react message(s)",

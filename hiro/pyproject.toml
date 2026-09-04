@@ -5,6 +5,7 @@ description = "Baymax medical knowledge base, agentic chat workflow, and HTTP AP
 requires-python = ">=3.14"
 dependencies = [
     "alembic==1.19.1",
+    "arize-phoenix-client>=3.4.0",
     "celery[redis]==5.6.3",
     "dynaconf==3.3.5",
     "fastapi==0.141.1",

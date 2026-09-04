@@ -1,9 +1,7 @@
 """Medical-topic guardrail node."""
 
-from langchain_core.messages import HumanMessage, SystemMessage
-
+from hiro.chat import prompts
 from hiro.chat.agent.models import get_guardrail_model
-from hiro.chat.agent.nodes.common import render
 from hiro.chat.agent.state import AgentState
 from hiro.common.logging import get_logger, log_duration
 from hiro.config import get_config
@@ -17,22 +15,12 @@ async def guardrail(state: AgentState) -> AgentState:
     """Classify the question as medical (1) or not (0).
 
     Anything other than a leading 1 is treated as 0. A classifier that starts
-    explaining itself, or an endpoint that is down, cannot admit a non-medical
-    question.
+    explaining itself, an endpoint that is down, or a prompt that cannot be
+    fetched, cannot admit a non-medical question.
     """
-    config = get_config().chat
-    messages = [
-        SystemMessage(content=config.guardrail_system_prompt),
-        HumanMessage(
-            content=render(
-                config.guardrail_user_template,
-                "CHAT_GUARDRAIL_USER_TEMPLATE",
-                question=state["question"],
-            )
-        ),
-    ]
-
     try:
+        identifier = get_config().chat.prompt_guardrail
+        messages = await prompts.get_messages(identifier, question=state["question"])
         with log_duration(logger, "guardrail"):
             reply = await get_guardrail_model().ainvoke(messages)
         verdict = str(reply.content).strip()[:1]
