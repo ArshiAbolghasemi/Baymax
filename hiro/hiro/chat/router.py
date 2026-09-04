@@ -11,6 +11,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from hiro.chat import service
+from hiro.chat.agent.events import AgentEvent, TextDelta, ToolCall
 from hiro.chat.schemas import (
     AssistantMessage,
     ChatCompletionRequest,
@@ -42,7 +43,7 @@ def _chunk(
     completion_id: str,
     created: int,
     model: str,
-    delta: dict[str, str],
+    delta: dict[str, Any],
     finish_reason: str | None = None,
 ) -> dict[str, Any]:
     return {
@@ -57,6 +58,41 @@ def _chunk(
                 "finish_reason": finish_reason,
             }
         ],
+    }
+
+
+def _delta(event: AgentEvent) -> dict[str, Any]:
+    """One agent event as an OpenAI chunk delta.
+
+    Text and tool calls use the standard fields, so an OpenAI client reads the
+    reply as it always did and a tool-aware one sees the calls. Tool *results*
+    have no standard shape — OpenAI expects the client to run the tools — so
+    they travel under ``tool_results``, which other clients ignore.
+    """
+    if isinstance(event, TextDelta):
+        return {"content": event.text}
+    if isinstance(event, ToolCall):
+        return {
+            "tool_calls": [
+                {
+                    "index": 0,
+                    "id": event.id,
+                    "type": "function",
+                    "function": {
+                        "name": event.name,
+                        "arguments": json.dumps(event.arguments, separators=(",", ":")),
+                    },
+                }
+            ]
+        }
+    return {
+        "tool_results": [
+            {
+                "tool_call_id": event.tool_call_id,
+                "name": event.name,
+                "content": event.content,
+            }
+        ]
     }
 
 
@@ -82,13 +118,13 @@ async def _completion_events(
         )
     )
     try:
-        async for text in service.stream_reply(turn):
+        async for event in service.stream_reply(turn):
             yield _sse(
                 _chunk(
                     completion_id=completion_id,
                     created=created,
                     model=model,
-                    delta={"content": text},
+                    delta=_delta(event),
                 )
             )
         yield _sse(

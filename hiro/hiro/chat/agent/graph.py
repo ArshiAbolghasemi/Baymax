@@ -10,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from hiro.chat.agent import nodes
+from hiro.chat.agent.events import AgentEvent, TextDelta, ToolCall, ToolResult
 from hiro.chat.agent.mcp import get_mcp_tools
 from hiro.chat.agent.state import AgentState
 from hiro.common.logging import get_logger
@@ -133,20 +134,48 @@ async def get_graph():
     return _graph
 
 
-async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[str]:
-    """Run the workflow, yielding the reply in chunks.
+def _tool_calls(update: dict) -> list[ToolCall]:
+    """Tool calls the answer node just requested, if any."""
+    messages = update.get("messages") or []
+    calls = getattr(messages[-1], "tool_calls", None) if messages else None
+    return [
+        ToolCall(
+            id=str(call.get("id") or ""),
+            name=str(call.get("name") or "unknown"),
+            arguments=dict(call.get("args") or {}),
+        )
+        for call in (calls or [])
+    ]
+
+
+def _tool_results(update: dict) -> list[ToolResult]:
+    """What the tools node returned, one event per tool message."""
+    return [
+        ToolResult(
+            tool_call_id=str(getattr(message, "tool_call_id", "") or ""),
+            name=str(getattr(message, "name", "") or "unknown"),
+            content=str(getattr(message, "content", "") or ""),
+        )
+        for message in (update.get("messages") or [])
+    ]
+
+
+async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[AgentEvent]:
+    """Run the workflow, yielding what it does as it does it.
 
     Two stream modes are consumed at once:
 
     * ``messages`` carries LLM tokens. They are filtered to the answer node, so
       the guardrail's single character never reaches the user.
-    * ``updates`` carries node results, which is how the blocked branch — which
-      calls no model and therefore emits no tokens — delivers its fixed refusal.
+    * ``updates`` carries node results: the blocked branch's fixed refusal —
+      which calls no model and therefore emits no tokens — plus the tool calls
+      the answer node requested and the results the tools node produced.
     """
     state: AgentState = {"question": question, "session_uid": session_uid}
     started = time.perf_counter()
     chunks_yielded = 0
     chars_yielded = 0
+    tools_called = 0
     logger.info("agent run started session_uid=%s question_chars=%d", session_uid, len(question))
 
     try:
@@ -160,13 +189,21 @@ async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[
                 if rendered:
                     chunks_yielded += 1
                     chars_yielded += len(rendered)
-                    yield rendered
+                    yield TextDelta(rendered)
 
-            elif mode == "updates" and BLOCKED_NODE in chunk:
-                rendered = chunk[BLOCKED_NODE]["answer"]
-                chunks_yielded += 1
-                chars_yielded += len(rendered)
-                yield rendered
+            elif mode == "updates":
+                if BLOCKED_NODE in chunk:
+                    rendered = chunk[BLOCKED_NODE]["answer"]
+                    chunks_yielded += 1
+                    chars_yielded += len(rendered)
+                    yield TextDelta(rendered)
+                elif ANSWER_NODE in chunk:
+                    for call in _tool_calls(chunk[ANSWER_NODE]):
+                        tools_called += 1
+                        yield call
+                elif TOOLS_NODE in chunk:
+                    for result in _tool_results(chunk[TOOLS_NODE]):
+                        yield result
     except Exception:
         logger.exception(
             "agent run failed session_uid=%s chunks=%d chars=%d",
@@ -178,9 +215,10 @@ async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[
     finally:
         elapsed = (time.perf_counter() - started) * 1_000
         logger.info(
-            "agent run finished session_uid=%s chunks=%d chars=%d elapsed_ms=%.1f",
+            "agent run finished session_uid=%s chunks=%d chars=%d tool_calls=%d elapsed_ms=%.1f",
             session_uid,
             chunks_yielded,
             chars_yielded,
+            tools_called,
             elapsed,
         )

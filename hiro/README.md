@@ -165,6 +165,14 @@ server that comes up late starts working on the next question — but the tool
 names, argument bounds, response limits and disclaimers are all configured in
 `dobby/.env`, not here.
 
+**The stream carries tool activity, not just text.** `stream_answer` yields
+`TextDelta`, `ToolCall` and `ToolResult` events (`chat/agent/events.py`), and
+the router encodes them as OpenAI chunk deltas: text and tool calls in the
+standard fields, tool results under a `tool_results` key, since OpenAI has no
+shape for a result the server produced itself. A text-only client such as
+`bashmax` reads `delta.content` and ignores the rest; `eve` renders the calls.
+Only text is persisted as the reply.
+
 **One agent, one model id.** `POST /v1/chat/completions` serves only the model
 `GET /v1/models` advertises (`CHAT_AGENT_MODEL_NAME`, default `baymax`) and
 refuses anything else with `404`, rather than answering as Baymax under another

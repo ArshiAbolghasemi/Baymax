@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hiro.chat import repository as repo
+from hiro.chat.agent.events import AgentEvent, TextDelta
 from hiro.chat.agent.graph import stream_answer
 from hiro.chat.schemas import ChatCompletionRequest
 from hiro.chat.session_resolution import ResolvedSession, resolve_session
@@ -118,8 +119,12 @@ async def _store_assistant_message(session_uid: uuid.UUID, content: str) -> None
     )
 
 
-async def stream_reply(turn: PreparedTurn) -> AsyncIterator[str]:
-    """Run the shared agent graph, stream chunks, then persist a complete reply."""
+async def stream_reply(turn: PreparedTurn) -> AsyncIterator[AgentEvent]:
+    """Run the shared agent graph, stream its events, then persist the reply.
+
+    Only text is persisted: a tool call is how an answer was reached, not part
+    of the answer a client replays as history.
+    """
     chunks: list[str] = []
     completed = False
     started = time.perf_counter()
@@ -129,9 +134,10 @@ async def stream_reply(turn: PreparedTurn) -> AsyncIterator[str]:
         len(turn.question),
     )
     try:
-        async for chunk in stream_answer(turn.question, turn.session_uid):
-            chunks.append(chunk)
-            yield chunk
+        async for event in stream_answer(turn.question, turn.session_uid):
+            if isinstance(event, TextDelta):
+                chunks.append(event.text)
+            yield event
         completed = True
     except Exception:
         logger.exception("chat generation failed session_uid=%s", turn.session_uid)
@@ -170,5 +176,10 @@ async def stream_reply(turn: PreparedTurn) -> AsyncIterator[str]:
 
 
 async def answer(turn: PreparedTurn) -> str:
-    """Collect the same persisted stream for a non-streaming client."""
-    return "".join([chunk async for chunk in stream_reply(turn)])
+    """Collect the same persisted stream for a non-streaming client.
+
+    Tool activity is dropped: a single JSON response has nowhere to put it.
+    """
+    return "".join(
+        [event.text async for event in stream_reply(turn) if isinstance(event, TextDelta)]
+    )
