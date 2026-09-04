@@ -12,10 +12,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from hiro.api.middleware import CorrelationIdMiddleware
+from hiro.api.middleware import ChatTraceMiddleware, CorrelationIdMiddleware
 from hiro.api.schemas import HealthResponse
 from hiro.chat.router import router as chat_router
 from hiro.common.logging import configure_logging, get_logger
+from hiro.common.tracing import configure_tracing, shutdown_tracing
 from hiro.config import get_config
 from hiro.db.session import dispose_async_engine
 from hiro.knowledge_base.router import router as knowledge_base_router
@@ -67,10 +68,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     await dispose_async_engine()
     logger.info("shutting down")
+    shutdown_tracing()
 
 
 def create_app() -> FastAPI:
     configure_logging()
+    configure_tracing()
     config = get_config().api
 
     app = FastAPI(
@@ -86,6 +89,7 @@ def create_app() -> FastAPI:
         redoc_url=config.redoc_url if config.docs_enabled else None,
         openapi_url=config.openapi_url if config.docs_enabled else None,
     )
+    app.add_middleware(ChatTraceMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
     app.include_router(knowledge_base_router)
     app.include_router(chat_router)

@@ -211,6 +211,12 @@ class PhoenixConfig(Dynaconf):
         return str(self.get("PHOENIX_API_KEY", ""))
 
     @property
-    def prompt_tag(self) -> str:
-        """Version tag to read, e.g. ``production``. Empty reads the latest version."""
-        return str(self.get("PHOENIX_PROMPT_TAG", ""))
+    def project_name(self) -> str:
+        """Phoenix project that receives Hiro's chat traces."""
+        return str(self.get("PHOENIX_PROJECT_NAME", "hiro"))
+
+    @property
+    def collector_endpoint(self) -> str:
+        """OTLP/HTTP trace endpoint exposed by Phoenix."""
+        default = f"{self.base_url.rstrip('/')}/v1/traces"
+        return str(self.get("PHOENIX_COLLECTOR_ENDPOINT", default))

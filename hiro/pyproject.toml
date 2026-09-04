@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic==1.19.1",
     "arize-phoenix-client>=3.4.0",
+    "arize-phoenix-otel>=0.16.0",
     "celery[redis]==5.6.3",
     "dynaconf==3.3.5",
     "fastapi==0.141.1",
@@ -16,6 +17,7 @@ dependencies = [
     "langgraph==1.2.2",
     "loguru==0.7.3",
     "openai==3.0.0",
+    "openinference-instrumentation-langchain>=0.1.0",
     "psycopg[binary]==3.3.4",
     "pydantic==2.13.4",
     "qdrant-client==1.19.0",

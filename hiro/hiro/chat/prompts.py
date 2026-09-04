@@ -39,7 +39,7 @@ async def get_messages(identifier: str, **variables: str) -> list[BaseMessage]:
     Phoenix does the substitution, so a template that gains or loses a variable
     needs no change here.
     """
-    tag = get_config().phoenix.prompt_tag or None
+    tag = get_config().chat.prompt_tag(identifier) or None
     version = await get_client().prompts.get(prompt_identifier=identifier, tag=tag)
     messages = convert_to_messages(list(version.format(variables=variables)["messages"]))
     logger.debug(

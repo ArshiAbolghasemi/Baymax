@@ -61,9 +61,17 @@ class ChatConfig(Dynaconf):
         return str(self.get("CHAT_PROMPT_ANSWER", "hiro-answer"))
 
     @property
+    def prompt_answer_tag(self) -> str:
+        return str(self.get("CHAT_PROMPT_ANSWER_TAG", ""))
+
+    @property
     def prompt_guardrail(self) -> str:
         """Medical-topic classifier. Variable: question. Must answer a single 1 or 0."""
         return str(self.get("CHAT_PROMPT_GUARDRAIL", "hiro-guardrail"))
+
+    @property
+    def prompt_guardrail_tag(self) -> str:
+        return str(self.get("CHAT_PROMPT_GUARDRAIL_TAG", ""))
 
     @property
     def prompt_blocked(self) -> str:
@@ -71,9 +79,17 @@ class ChatConfig(Dynaconf):
         return str(self.get("CHAT_PROMPT_BLOCKED", "hiro-blocked"))
 
     @property
+    def prompt_blocked_tag(self) -> str:
+        return str(self.get("CHAT_PROMPT_BLOCKED_TAG", ""))
+
+    @property
     def prompt_no_instructions(self) -> str:
         """Stands in for the instruction block when nothing matched. No variables."""
         return str(self.get("CHAT_PROMPT_NO_INSTRUCTIONS", "hiro-no-instructions"))
+
+    @property
+    def prompt_no_instructions_tag(self) -> str:
+        return str(self.get("CHAT_PROMPT_NO_INSTRUCTIONS_TAG", ""))
 
     @property
     def prompt_no_documents(self) -> str:
@@ -81,9 +97,17 @@ class ChatConfig(Dynaconf):
         return str(self.get("CHAT_PROMPT_NO_DOCUMENTS", "hiro-no-documents"))
 
     @property
+    def prompt_no_documents_tag(self) -> str:
+        return str(self.get("CHAT_PROMPT_NO_DOCUMENTS_TAG", ""))
+
+    @property
     def prompt_no_history(self) -> str:
         """Stands in for the history block on the first turn. No variables."""
         return str(self.get("CHAT_PROMPT_NO_HISTORY", "hiro-no-history"))
+
+    @property
+    def prompt_no_history_tag(self) -> str:
+        return str(self.get("CHAT_PROMPT_NO_HISTORY_TAG", ""))
 
     @property
     def prompt_probe(self) -> str:
@@ -94,6 +118,22 @@ class ChatConfig(Dynaconf):
         a rendered prompt that the agent would then wrap a second time.
         """
         return str(self.get("CHAT_PROMPT_PROBE", "hiro-probe"))
+
+    @property
+    def prompt_probe_tag(self) -> str:
+        return str(self.get("CHAT_PROMPT_PROBE_TAG", ""))
+
+    def prompt_tag(self, identifier: str) -> str:
+        """Return the independently configured version tag for a prompt."""
+        return {
+            self.prompt_answer: self.prompt_answer_tag,
+            self.prompt_guardrail: self.prompt_guardrail_tag,
+            self.prompt_blocked: self.prompt_blocked_tag,
+            self.prompt_no_instructions: self.prompt_no_instructions_tag,
+            self.prompt_no_documents: self.prompt_no_documents_tag,
+            self.prompt_no_history: self.prompt_no_history_tag,
+            self.prompt_probe: self.prompt_probe_tag,
+        }.get(identifier, "")
 
     # --- instructions -----------------------------------------------------
 

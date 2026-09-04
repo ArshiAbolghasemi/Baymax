@@ -67,11 +67,16 @@ uv sync
 | `MCP_URL` | where dobby is listening, `:8090` by default |
 | `CHAT_INSTRUCTION_COLLECTION` | the Qdrant collection your instructions are written to |
 | `PHOENIX_BASE_URL` | the Phoenix container — defaults to `:6006`, so only set it if Phoenix is elsewhere |
+| `PHOENIX_COLLECTOR_ENDPOINT` | Phoenix's OTLP/HTTP endpoint, ending in `/v1/traces` |
 
 No prompt is a setting, and none has a default in the code: the wording all
-lives in Phoenix. `PHOENIX_PROMPT_TAG` decides which version is read — empty
-takes the latest, so a UI edit is live on the next question; `production` (or
-any tag) pins hiro to a reviewed version.
+lives in Phoenix. Each `CHAT_PROMPT_*_TAG` independently selects a version of
+its matching prompt. An empty tag reads the latest version, so UI edits are
+live on the next question.
+
+Each `POST /v1/chat/completions` request is exported to the `hiro` Phoenix
+project as one `CHAIN` trace. LangGraph nodes, model calls, and MCP tool calls
+appear beneath that root span, including work performed while streaming SSE.
 
 ## Running
 
