@@ -145,7 +145,10 @@ async def list_models() -> ModelList:
     description=(
         "OpenAI-compatible chat completions endpoint. Set stream=true for SSE. "
         "Conversation identity resolves from X-Session-UID, body session_uid, "
-        "body chat_id, then a deterministic user/first-message fallback."
+        "body chat_id, then a deterministic user/first-message fallback. "
+        "Only the model advertised by GET /v1/models is served; any other is "
+        "refused with 404. The agent supplies its own prompt, so system and "
+        "assistant messages in the request are ignored."
     ),
 )
 async def create_chat_completion(
@@ -163,6 +166,38 @@ async def create_chat_completion(
         payload.stream,
         len(payload.messages),
     )
+
+    # This endpoint serves one agent. Answering a request for some other model
+    # would silently return Baymax's answer under that model's name, so refuse
+    # it the way OpenAI does — a client picking a model from a playground finds
+    # out here rather than by reading a plausible-looking wrong answer.
+    if payload.model != model:
+        logger.warning(
+            "openai completion refused completion_id=%s requested_model=%s served_model=%s",
+            completion_id,
+            payload.model,
+            model,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"The model {payload.model!r} does not exist. "
+                f"This endpoint serves {model!r} only; see GET /v1/models."
+            ),
+        )
+
+    # The agent owns its prompt: only user turns are read, and any system or
+    # assistant message a client sends is dropped. Say so, because a client
+    # replaying a full prompt would otherwise wonder where it went.
+    ignored = [message.role for message in payload.messages if message.role != "user"]
+    if ignored:
+        logger.info(
+            "openai completion ignoring %d non-user message(s) roles=%s completion_id=%s",
+            len(ignored),
+            sorted(set(ignored)),
+            completion_id,
+        )
+
     try:
         turn = await service.store_user_message(
             session,

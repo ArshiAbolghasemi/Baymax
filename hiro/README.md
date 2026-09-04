@@ -160,6 +160,12 @@ server that comes up late starts working on the next question — but the tool
 names, argument bounds, response limits and disclaimers are all configured in
 `dobby/.env`, not here.
 
+**One agent, one model id.** `POST /v1/chat/completions` serves only the model
+`GET /v1/models` advertises (`CHAT_AGENT_MODEL_NAME`, default `baymax`) and
+refuses anything else with `404`, rather than answering as Baymax under another
+name. The agent also supplies its own prompt: system and assistant messages in
+a request are ignored, and the count is logged.
+
 **There are no prompt defaults.** `hiro/chat/prompts.py` fetches all six
 prompts from Phoenix per turn — by the identifiers the `CHAT_PROMPT_*` settings
 name, and there is nothing to fall back to when that

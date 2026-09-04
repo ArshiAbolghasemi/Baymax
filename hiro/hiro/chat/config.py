@@ -85,6 +85,16 @@ class ChatConfig(Dynaconf):
         """Stands in for the history block on the first turn. No variables."""
         return str(self.get("CHAT_PROMPT_NO_HISTORY", "hiro-no-history"))
 
+    @property
+    def prompt_probe(self) -> str:
+        """A bare question, for driving the agent from the Phoenix playground.
+
+        Never fetched by the workflow — the agent supplies its own prompt. It is
+        seeded so that running something in the playground sends a question, not
+        a rendered prompt that the agent would then wrap a second time.
+        """
+        return str(self.get("CHAT_PROMPT_PROBE", "hiro-probe"))
+
     # --- instructions -----------------------------------------------------
 
     @property
