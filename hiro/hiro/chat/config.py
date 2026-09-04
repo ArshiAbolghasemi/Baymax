@@ -4,12 +4,6 @@ from dynaconf import Dynaconf
 
 from hiro.common.env import dynaconf_kwargs
 
-_DEFAULT_MEDICAL_TOOLS_TRANSIENT_STATUS_CODES = [408, 425, 429, 500, 502, 503, 504]
-_DEFAULT_FAERS_DISCLAIMER = (
-    "FAERS reports do not establish that the drug caused the reported event. "
-    "Counts are reports, not incidence rates or probabilities."
-)
-
 _DEFAULT_SYSTEM_PROMPT = (
     "You are Baymax, a careful medical assistant. Answer clearly and concisely. "
     "Recommend seeing a clinician for anything urgent, and never invent facts "
@@ -160,84 +154,23 @@ class ChatConfig(Dynaconf):
         return str(self.get("CHAT_NO_HISTORY_TEXT", _DEFAULT_NO_HISTORY_TEXT))
 
 
-class MedicalToolsConfig(Dynaconf):
-    """External medical source, response-size, cache, and HTTP settings."""
+class McpConfig(Dynaconf):
+    """Where the dobby MCP server serving the external medical tools lives."""
 
     def __init__(self) -> None:
         super().__init__(**dynaconf_kwargs())
 
     @property
-    def medlineplus_search_url(self) -> str:
-        return str(self.get("MEDLINEPLUS_SEARCH_URL", "https://wsearch.nlm.nih.gov/ws/query"))
+    def url(self) -> str:
+        """Streamable HTTP endpoint, including the path."""
+        return str(self.get("MCP_URL", "http://localhost:8080/mcp"))
 
     @property
-    def dailymed_api_url(self) -> str:
-        return str(
-            self.get("DAILYMED_API_URL", "https://dailymed.nlm.nih.gov/dailymed/services/v2")
-        ).rstrip("/")
+    def timeout(self) -> float:
+        """Seconds for a request to the server, tool call included."""
+        return float(self.get("MCP_TIMEOUT", 30))
 
     @property
-    def openfda_event_url(self) -> str:
-        return str(self.get("OPENFDA_EVENT_URL", "https://api.fda.gov/drug/event.json"))
-
-    @property
-    def max_results(self) -> int:
-        return int(self.get("MEDICAL_TOOLS_MAX_RESULTS", 5))
-
-    @property
-    def max_summary_chars(self) -> int:
-        return int(self.get("MEDICAL_TOOLS_MAX_SUMMARY_CHARS", 1_600))
-
-    @property
-    def max_label_section_chars(self) -> int:
-        return int(self.get("MEDICAL_TOOLS_MAX_LABEL_SECTION_CHARS", 1_800))
-
-    @property
-    def max_cache_entries(self) -> int:
-        return int(self.get("MEDICAL_TOOLS_MAX_CACHE_ENTRIES", 512))
-
-    @property
-    def transient_status_codes(self) -> set[int]:
-        values = self.get(
-            "MEDICAL_TOOLS_TRANSIENT_STATUS_CODES",
-            _DEFAULT_MEDICAL_TOOLS_TRANSIENT_STATUS_CODES,
-        )
-        if isinstance(values, str):
-            values = values.split(",")
-        return {int(value) for value in values}
-
-    @property
-    def http_connect_timeout(self) -> float:
-        return float(self.get("MEDICAL_TOOLS_HTTP_CONNECT_TIMEOUT", 5))
-
-    @property
-    def http_read_timeout(self) -> float:
-        return float(self.get("MEDICAL_TOOLS_HTTP_READ_TIMEOUT", 15))
-
-    @property
-    def http_write_timeout(self) -> float:
-        return float(self.get("MEDICAL_TOOLS_HTTP_WRITE_TIMEOUT", 5))
-
-    @property
-    def http_pool_timeout(self) -> float:
-        return float(self.get("MEDICAL_TOOLS_HTTP_POOL_TIMEOUT", 5))
-
-    @property
-    def http_max_retries(self) -> int:
-        return int(self.get("MEDICAL_TOOLS_HTTP_MAX_RETRIES", 2))
-
-    @property
-    def http_retry_multiplier(self) -> float:
-        return float(self.get("MEDICAL_TOOLS_HTTP_RETRY_MULTIPLIER", 0.25))
-
-    @property
-    def http_retry_min_wait(self) -> float:
-        return float(self.get("MEDICAL_TOOLS_HTTP_RETRY_MIN_WAIT", 0.25))
-
-    @property
-    def http_retry_max_wait(self) -> float:
-        return float(self.get("MEDICAL_TOOLS_HTTP_RETRY_MAX_WAIT", 2))
-
-    @property
-    def faers_disclaimer(self) -> str:
-        return str(self.get("FAERS_DISCLAIMER", _DEFAULT_FAERS_DISCLAIMER))
+    def read_timeout(self) -> float:
+        """Seconds to wait for the next event on the response stream."""
+        return float(self.get("MCP_READ_TIMEOUT", 60))

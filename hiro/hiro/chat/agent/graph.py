@@ -3,7 +3,6 @@
 import time
 import uuid
 from collections.abc import AsyncIterator
-from functools import lru_cache
 from typing import Literal
 
 from langchain_core.messages import AIMessage
@@ -11,8 +10,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from hiro.chat.agent import nodes
+from hiro.chat.agent.mcp import get_mcp_tools
 from hiro.chat.agent.state import AgentState
-from hiro.chat.agent.tools import EXTERNAL_MEDICAL_TOOLS
 from hiro.common.logging import get_logger
 
 logger = get_logger(__name__)
@@ -84,9 +83,20 @@ def route_after_answer(state: AgentState) -> Literal["external_tools", "__end__"
     return END
 
 
-@lru_cache(maxsize=1)
-def get_graph():
-    """Build and compile the workflow once per process."""
+_graph = None
+
+
+async def get_graph():
+    """Build and compile the workflow once per process.
+
+    Asynchronous because the tool node is wired from the tools the MCP server
+    advertises, which are discovered over the network on first use.
+    """
+    global _graph
+    if _graph is not None:
+        return _graph
+
+    tools = await get_mcp_tools()
     builder = StateGraph(AgentState)
 
     builder.add_node("guardrail", nodes.guardrail)
@@ -94,7 +104,7 @@ def get_graph():
     # builder.add_node("retrieve_documents", nodes.retrieve_documents)
     builder.add_node("retrieve_history", nodes.retrieve_history)
     builder.add_node(ANSWER_NODE, nodes.answer)
-    builder.add_node(TOOLS_NODE, ToolNode(EXTERNAL_MEDICAL_TOOLS))
+    builder.add_node(TOOLS_NODE, ToolNode(tools))
 
     builder.add_edge(START, "guardrail")
     builder.add_conditional_edges(
@@ -115,9 +125,10 @@ def get_graph():
     logger.info(
         "chat agent graph compiled retrieval_nodes=%d external_tools=%d",
         len(RETRIEVAL_NODES),
-        len(EXTERNAL_MEDICAL_TOOLS),
+        len(tools),
     )
-    return builder.compile()
+    _graph = builder.compile()
+    return _graph
 
 
 async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[str]:
@@ -137,7 +148,8 @@ async def stream_answer(question: str, session_uid: uuid.UUID) -> AsyncIterator[
     logger.info("agent run started session_uid=%s question_chars=%d", session_uid, len(question))
 
     try:
-        async for mode, chunk in get_graph().astream(state, stream_mode=["updates", "messages"]):
+        graph = await get_graph()
+        async for mode, chunk in graph.astream(state, stream_mode=["updates", "messages"]):
             if mode == "messages":
                 message, metadata = chunk
                 if metadata.get("langgraph_node") != ANSWER_NODE:

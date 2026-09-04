@@ -11,7 +11,7 @@ from typing import Any
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_openai import ChatOpenAI
 
-from hiro.chat.agent.tools import EXTERNAL_MEDICAL_TOOLS
+from hiro.chat.agent.mcp import get_mcp_tools
 from hiro.common.logging import get_logger
 from hiro.config import get_config
 
@@ -40,14 +40,10 @@ def get_answer_model() -> ChatOpenAI:
     )
 
 
-@lru_cache(maxsize=1)
-def get_answer_tool_schemas() -> list[dict[str, Any]]:
-    """Convert tools without wrapping or mutating the configured chat model."""
-    logger.info(
-        "converting answer tools count=%d strict=true",
-        len(EXTERNAL_MEDICAL_TOOLS),
-    )
-    return [convert_to_openai_tool(tool, strict=True) for tool in EXTERNAL_MEDICAL_TOOLS]
+async def get_answer_tool_schemas() -> list[dict[str, Any]]:
+    """Convert the MCP tools without wrapping or mutating the chat model."""
+    tools = await get_mcp_tools()
+    return [convert_to_openai_tool(tool, strict=True) for tool in tools]
 
 
 @lru_cache(maxsize=1)

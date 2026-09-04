@@ -19,7 +19,7 @@ from functools import lru_cache
 from dynaconf import Dynaconf
 
 from hiro.api.config import ApiConfig
-from hiro.chat.config import ChatConfig, MedicalToolsConfig
+from hiro.chat.config import ChatConfig, McpConfig
 from hiro.clients.config import ChatbotConfig, EmbeddingConfig, GuardrailConfig, QdrantConfig
 from hiro.common.env import dynaconf_kwargs
 from hiro.db.config import DatabaseConfig
@@ -79,7 +79,7 @@ class AppConfig:
     api: ApiConfig
     logging: LoggingConfig
     chat: ChatConfig
-    medical_tools: MedicalToolsConfig
+    mcp: McpConfig
     database: DatabaseConfig
     celery: CeleryConfig
     embedding: EmbeddingConfig
@@ -96,7 +96,7 @@ def get_config() -> AppConfig:
         api=ApiConfig(),
         logging=LoggingConfig(),
         chat=ChatConfig(),
-        medical_tools=MedicalToolsConfig(),
+        mcp=McpConfig(),
         database=DatabaseConfig(),
         celery=CeleryConfig(),
         embedding=EmbeddingConfig(),

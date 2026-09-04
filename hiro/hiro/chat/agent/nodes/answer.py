@@ -71,7 +71,7 @@ async def answer(state: AgentState) -> AgentState:
         documents=len(state.get("documents") or []),
     ):
         chatbot_config = get_config().chatbot
-        tools = get_answer_tool_schemas()
+        tools = await get_answer_tool_schemas()
         logger.info(
             "answer request endpoint=%s model=%s tools=%d choice=auto",
             chatbot_config.base_url,
