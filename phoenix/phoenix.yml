@@ -1,0 +1,30 @@
+name: phoenix
+
+services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: phoenix
+    ports:
+      # 6006 serves the UI and the REST API hiro reads prompts from.
+      - "6006:6006"
+      # OTLP ingest, for tracing hiro later. Nothing sends to it today.
+      - "4317:4317"
+    env_file:
+      - .env
+    environment:
+      # SQLite under a named volume: Phoenix keeps its own state, so it does
+      # not depend on the Postgres in ../infra and can be started on its own.
+      # Point PHOENIX_SQL_DATABASE_URL at Postgres instead if you outgrow it.
+      - PHOENIX_WORKING_DIR=/mnt/data
+    volumes:
+      - phoenix_data:/mnt/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006/healthz')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  phoenix_data:
