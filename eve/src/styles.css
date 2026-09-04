@@ -1,0 +1,221 @@
+:root {
+  --bg: #fbfbfa;
+  --fg: #1c1c1a;
+  --muted: #6b6b66;
+  --line: #e3e3df;
+  --panel: #ffffff;
+  --accent: #2f6f4f;
+  --running: #9a6b1f;
+  --error: #a33;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16161a;
+    --fg: #ecece8;
+    --muted: #9a9a94;
+    --line: #2c2c32;
+    --panel: #1e1e24;
+    --accent: #6fbf94;
+    --running: #d6a54a;
+    --error: #e3736f;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    15px / 1.55 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+.app {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+.app-header p {
+  margin: 0.15rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.thread-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding-bottom: 1rem;
+}
+
+.thread-empty {
+  color: var(--muted);
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-user {
+  align-self: flex-end;
+  max-width: 80%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.9rem 0.9rem 0.2rem 0.9rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.message-assistant {
+  align-self: stretch;
+}
+
+/* --- tool calls --- */
+
+.tool {
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--panel);
+  margin: 0.5rem 0;
+  overflow: hidden;
+}
+
+.tool-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-status {
+  font-size: 0.9rem;
+}
+.tool-running .tool-status {
+  color: var(--running);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.tool-done .tool-status {
+  color: var(--accent);
+}
+.tool-error .tool-status {
+  color: var(--error);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.tool-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.tool-summary {
+  color: var(--muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-chevron {
+  color: var(--muted);
+}
+
+.tool-body {
+  border-top: 1px solid var(--line);
+  padding: 0.5rem 0.6rem 0.7rem;
+}
+
+.tool-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0.4rem 0 0.2rem;
+}
+
+.tool-body pre {
+  margin: 0;
+  padding: 0.5rem;
+  background: var(--bg);
+  border-radius: 0.4rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  max-height: 22rem;
+}
+
+/* --- composer --- */
+
+.composer {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem 0 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.composer-input {
+  flex: 1;
+  resize: none;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+}
+
+.composer-send {
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.composer-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
