@@ -26,22 +26,6 @@ Every result also carries `status`, `source`, `url`, and `error` when the
 retrieval failed. The sources are MedlinePlus, DailyMed, openFDA/FAERS and
 MedlinePlus Genetics; none of them needs an API key.
 
-## Layout
-
-```
-cmd/dobby/main.go               the binary: one call into internal/dobby
-internal/dobby                  process lifecycle: signals, App, metrics server
-internal/config                 the whole configuration, in one global Conf
-internal/logging                zap logger, tee'd to a JSON file and the console
-internal/metrics                tool_call_* / upstream_* series
-internal/mcpserver              the MCP server, its transport and middleware
-internal/httpx                  outbound HTTP: timeouts and bounded retries
-internal/tools                  one file per tool, plus the shared registry
-internal/medline                parsing for the NLM service both MedlinePlus tools use
-internal/textutil               markup stripping and length budgets
-docs/tools                      usage and response reference for each MCP tool
-```
-
 ## Configuration
 
 Everything is read from the environment (or a local `.env`), with a working
