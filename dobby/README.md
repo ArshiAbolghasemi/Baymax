@@ -87,40 +87,6 @@ session id to carry between calls.
 To exercise a tool without hitting a real upstream, point its URL at a local
 stub: `OPENFDA_EVENT_URL=http://127.0.0.1:8099/ ./bin/dobby`.
 
-## Design decisions worth knowing
-
-**A failed retrieval is a result, not a protocol error.** Every tool returns
-`status: ok | no_results | error`. A model that asked about a drug label needs
-to be able to say "I could not check", which it cannot do if the call fails at
-the transport level. Only an invalid *argument* fails the call, because that is
-the one thing the model can fix and retry.
-
-**`no_results` and `error` are kept apart deliberately.** openFDA answers `404`
-when a search matches no reports; treating that as a failure — or as an empty
-result — would let a model read "no reported adverse events" out of "we could
-not reach FDA". That 404 maps to `no_results`; everything else that fails is
-`error`, and `404` is deliberately absent from the retryable statuses.
-
-**The question is the sensitive data.** `query` and `drug_name` are redacted to
-their length in the logs. What a person asks these tools *is* the health
-information, so it must not sit in `access.log`; the rest of a call is logged
-in full so it can still be traced.
-
-**Schemas come from the Go types.** `mcp.WithOutputSchema[T]` derives the
-result schema from the same struct the handler returns, and both directions are
-validated at runtime, so the advertised contract cannot drift from the code.
-Argument bounds are advertised in the input schema *and* enforced in the
-handler, because a client is free to ignore a schema.
-
-**Everything is bounded.** Summaries, label sections, result counts and response
-bodies all have caps, so a verbose upstream document cannot consume a client's
-context window.
-
-**Implausible upstream data is dropped, not corrected.** FAERS contains
-transcription errors — reports dated in the year 3004 are really in the
-dataset. A receipt date outside a plausible window is omitted rather than
-guessed at.
-
 ## Tests
 
 ```bash
