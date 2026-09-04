@@ -3,6 +3,7 @@ module github.com/ArshiAbolghasemi/Baymax/dobby
 go 1.27.1
 
 require (
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/beevik/etree v1.7.1
 	github.com/go-playground/validator/v10 v10.30.4
 	github.com/mark3labs/mcp-go v1.0.0

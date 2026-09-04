@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -23,6 +22,7 @@ import (
 	"github.com/ArshiAbolghasemi/Baymax/dobby/internal/config"
 	"github.com/ArshiAbolghasemi/Baymax/dobby/internal/logging"
 	"github.com/ArshiAbolghasemi/Baymax/dobby/internal/metrics"
+	retrygo "github.com/avast/retry-go/v4"
 	"go.uber.org/zap"
 )
 
@@ -132,64 +132,53 @@ func GetJSON(
 	return nil
 }
 
-// retry performs the request, repeating it while the failure looks transient
-// and the caller's context is still alive.
+// retry performs the request, repeating transient failures according to the
+// configured retry policy.
 func retry(ctx context.Context, client *http.Client, source, target string) ([]byte, error) {
 	start := time.Now()
-	attempts := config.Conf.HTTPMaxRetries + 1
+	attempt := 0
 
-	var lastErr error
+	body, err := retrygo.DoWithData(func() ([]byte, error) {
+		attempt++
 
-	for attempt := 1; attempt <= attempts; attempt++ {
-		err := waitBeforeRetry(ctx, source, attempt, lastErr)
-		if err != nil {
-			return nil, err
-		}
+		return do(ctx, client, source, target, attempt)
+	},
+		retrygo.Attempts(uint(config.Conf.HTTPMaxRetries+1)),
+		retrygo.Delay(config.Conf.RetryMultiplier),
+		retrygo.MaxDelay(config.Conf.RetryMaxWait),
+		retrygo.DelayType(retrygo.BackOffDelay),
+		retrygo.RetryIf(retryable),
+		retrygo.Context(ctx),
+		retrygo.LastErrorOnly(true),
+		retrygo.OnRetry(func(attempt uint, err error) {
+			if attempt >= uint(config.Conf.HTTPMaxRetries) {
+				return
+			}
 
-		body, err := do(ctx, client, source, target, attempt)
-		if err == nil {
-			metrics.ObserveUpstream(source, metrics.StatusSuccess, time.Since(start))
+			logging.Logger.Warn("retrying an upstream request",
+				zap.String("source", source),
+				zap.Int("attempt", int(attempt)+2),
+				zap.Int("status_code", StatusOf(err)),
+				zap.Error(err),
+			)
+		}),
+	)
+	if err == nil {
+		metrics.ObserveUpstream(source, metrics.StatusSuccess, time.Since(start))
 
-			return body, nil
-		}
-
-		lastErr = err
-
-		if ctx.Err() != nil || !retryable(err) {
-			break
-		}
+		return body, nil
 	}
 
 	metrics.ObserveUpstream(source, metrics.StatusFailed, time.Since(start))
 
 	logging.Logger.Error("upstream request failed",
 		zap.String("source", source),
-		zap.Int("status_code", StatusOf(lastErr)),
+		zap.Int("status_code", StatusOf(err)),
 		zap.Duration("duration", time.Since(start)),
-		zap.Error(lastErr),
+		zap.Error(err),
 	)
 
-	return nil, lastErr
-}
-
-// waitBeforeRetry pauses before every attempt but the first, and reports a
-// canceled context so the caller stops rather than sleeping through it.
-func waitBeforeRetry(ctx context.Context, source string, attempt int, lastErr error) error {
-	if attempt == 1 {
-		return nil
-	}
-
-	wait := backoff(attempt - 1)
-
-	logging.Logger.Warn("retrying an upstream request",
-		zap.String("source", source),
-		zap.Int("attempt", attempt),
-		zap.Int("status_code", StatusOf(lastErr)),
-		zap.Duration("wait", wait),
-		zap.Error(lastErr),
-	)
-
-	return sleep(ctx, wait)
+	return nil, err
 }
 
 // do performs one attempt and returns the body it read.
@@ -240,6 +229,10 @@ func do(ctx context.Context, client *http.Client, source, target string, attempt
 
 // retryable reports whether another attempt could plausibly succeed.
 func retryable(err error) bool {
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
 	status := StatusOf(err)
 	if status != 0 {
 		return config.Conf.IsTransientStatus(status)
@@ -252,27 +245,4 @@ func retryable(err error) bool {
 	// A per-attempt timeout surfaces as a *url.Error wrapping
 	// context.DeadlineExceeded; that is a timeout, not a caller cancellation.
 	return errors.Is(err, context.DeadlineExceeded)
-}
-
-// backoffBase is the factor each retry multiplies the wait by.
-const backoffBase = 2
-
-// backoff is exponential in the configured multiplier, capped at the
-// configured ceiling: multiplier * backoffBase^(retry-1).
-func backoff(retry int) time.Duration {
-	wait := time.Duration(float64(config.Conf.RetryMultiplier) * math.Pow(backoffBase, float64(retry-1)))
-
-	return min(wait, config.Conf.RetryMaxWait)
-}
-
-func sleep(ctx context.Context, duration time.Duration) error {
-	timer := time.NewTimer(duration)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }
