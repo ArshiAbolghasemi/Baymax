@@ -37,12 +37,11 @@ type GeneticsResult struct {
 func (s *Set) searchGenetics() Tool {
 	spec := searchSpec{
 		toolName:  geneticsToolName,
-		ttl:       config.Conf.GeneticsTTL,
 		source:    medline.SourceGenetics,
 		sourceURL: medline.URLGenetics,
 	}
 
-	return newSearchTool(s.cache, spec, geneticsDescription,
+	return newSearchTool(spec, geneticsDescription,
 		"Gene, genetic condition, inheritance, chromosome, or genetics-topic query.",
 		s.geneticsEntries,
 		func(query string, meta Meta) *GeneticsResult {

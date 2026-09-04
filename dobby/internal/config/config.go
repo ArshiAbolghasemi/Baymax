@@ -57,7 +57,6 @@ type Config struct {
 	MaxResults           int `mapdefault:"5"    mapstructure:"medical_tools_max_results"             validate:"min=1,max=50"`
 	MaxSummaryChars      int `mapdefault:"1600" mapstructure:"medical_tools_max_summary_chars"       validate:"min=100"`
 	MaxLabelSectionChars int `mapdefault:"1800" mapstructure:"medical_tools_max_label_section_chars" validate:"min=100"`
-	MaxCacheEntries      int `mapdefault:"512"  mapstructure:"medical_tools_max_cache_entries"       validate:"min=0"`
 
 	// Outbound HTTP: timeouts and the bounded, transient-only retry policy.
 	HTTPTimeout     time.Duration `mapdefault:"15s"                         mapstructure:"medical_tools_http_timeout"`
@@ -65,14 +64,6 @@ type Config struct {
 	RetryMultiplier time.Duration `mapdefault:"250ms"                       mapstructure:"medical_tools_http_retry_multiplier"`
 	RetryMaxWait    time.Duration `mapdefault:"2s"                          mapstructure:"medical_tools_http_retry_max_wait"`
 	TransientStatus []int         `mapdefault:"408,425,429,500,502,503,504" mapstructure:"medical_tools_transient_status_codes"`
-
-	// Cache lifetimes, per source. DailyMed publishes label revisions
-	// continuously and FAERS is updated daily, so their answers age faster
-	// than the editorial MedlinePlus content.
-	HealthInfoTTL time.Duration `mapdefault:"15m" mapstructure:"medical_tools_health_info_ttl"`
-	GeneticsTTL   time.Duration `mapdefault:"15m" mapstructure:"medical_tools_genetics_ttl"`
-	DrugLabelTTL  time.Duration `mapdefault:"5m"  mapstructure:"medical_tools_drug_label_ttl"`
-	DrugSafetyTTL time.Duration `mapdefault:"2m"  mapstructure:"medical_tools_drug_safety_ttl"`
 
 	// FAERSDisclaimer is attached to every drug-safety result. It is a setting
 	// rather than a constant so a deployment can meet its own regulatory

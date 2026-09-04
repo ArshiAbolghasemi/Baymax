@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/ArshiAbolghasemi/Baymax/dobby/internal/httpx"
@@ -22,11 +21,10 @@ import (
 const (
 	// StatusOK means the source answered and the result holds content.
 	StatusOK = "ok"
-	// StatusNoResults means the source answered and had nothing to say. It is
-	// a valid, cacheable answer.
+	// StatusNoResults means the source answered and had nothing to say.
 	StatusNoResults = "no_results"
 	// StatusError means the source could not be retrieved or could not be
-	// parsed. It is never cached.
+	// parsed.
 	StatusError = "error"
 )
 
@@ -183,15 +181,13 @@ func (m Meta) RetrievalStatus() string { return m.Status }
 // that is written once.
 type searchSpec struct {
 	toolName  string
-	ttl       time.Duration
 	source    string
 	sourceURL string
 }
 
-// searchHandler validates the query, runs the search through the cache, and
-// turns a retrieval failure into a result rather than a protocol error.
+// searchHandler validates the query, runs the search, and turns a retrieval
+// failure into a result rather than a protocol error.
 func searchHandler[T any](
-	cache *Cache,
 	spec searchSpec,
 	run func(context.Context, string) (*T, error),
 	onFailure func(query string, meta Meta) *T,
@@ -207,8 +203,7 @@ func searchHandler[T any](
 			return invalidArgument(spec.toolName, err), nil
 		}
 
-		result, err := cached(ctx, cache, spec.toolName, query, spec.ttl,
-			func(ctx context.Context) (*T, error) { return run(ctx, query) })
+		result, err := run(ctx, query)
 		if err != nil {
 			failure := onFailure(query, errorMeta(spec.source, spec.sourceURL, err))
 
@@ -234,7 +229,6 @@ func referenceAnnotations() []mcp.ToolOption {
 // differ only in their wording and in what they search, so everything else is
 // assembled here.
 func newSearchTool[T any](
-	cache *Cache,
 	spec searchSpec,
 	description, queryDescription string,
 	run func(context.Context, string) (*T, error),
@@ -248,6 +242,6 @@ func newSearchTool[T any](
 
 	return Tool{
 		Def:     mcp.NewTool(spec.toolName, options...),
-		Handler: searchHandler(cache, spec, run, onFailure),
+		Handler: searchHandler(spec, run, onFailure),
 	}
 }

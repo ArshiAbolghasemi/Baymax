@@ -34,10 +34,6 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("http timeout = %s, want 15s", cfg.HTTPTimeout)
 	}
 
-	if cfg.DrugSafetyTTL >= cfg.HealthInfoTTL {
-		t.Error("FAERS changes faster than the editorial content; its TTL should be shorter")
-	}
-
 	if cfg.FAERSDisclaimer == "" {
 		t.Error("the FAERS disclaimer must never default to empty")
 	}

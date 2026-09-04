@@ -126,12 +126,8 @@ func (s *Set) searchDrugSafety() Tool {
 		}
 
 		limit := clamp(request.GetInt("limit", defaultSafetyLimit), minSafetyLimit, maxSafetyLimit)
-		key := drugName + "\x00" + strconv.Itoa(limit)
 
-		result, err := cached(ctx, s.cache, drugSafetyToolName, key, config.Conf.DrugSafetyTTL,
-			func(ctx context.Context) (*DrugSafetyResult, error) {
-				return s.drugSafety(ctx, drugName, limit)
-			})
+		result, err := s.drugSafety(ctx, drugName, limit)
 		if err != nil {
 			failed := &DrugSafetyResult{
 				Drug:           drugName,

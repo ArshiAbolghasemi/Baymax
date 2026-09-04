@@ -142,12 +142,7 @@ func (s *Set) searchDrugLabel() Tool {
 				section, errUnknownSection, strings.Join(sectionNames, ", "))), nil
 		}
 
-		key := drugName + "\x00" + section
-
-		result, err := cached(ctx, s.cache, drugLabelToolName, key, config.Conf.DrugLabelTTL,
-			func(ctx context.Context) (*DrugLabelResult, error) {
-				return s.drugLabel(ctx, drugName, section)
-			})
+		result, err := s.drugLabel(ctx, drugName, section)
 		if err != nil {
 			return retrievalFailure(drugLabelToolName, &DrugLabelResult{
 				Drug:     drugName,

@@ -113,7 +113,7 @@ func TestHealthInfoReportsRetrievalFailureAsResult(t *testing.T) {
 	}
 }
 
-func TestFailedRetrievalIsNotCached(t *testing.T) {
+func TestRetrievalRetriesUpstream(t *testing.T) {
 	var calls atomic.Int32
 
 	set := harness(t, func(writer http.ResponseWriter, _ *http.Request) {
@@ -139,11 +139,11 @@ func TestFailedRetrievalIsNotCached(t *testing.T) {
 	call(t, set, healthInfoToolName, map[string]any{"query": "asthma"}, &second)
 
 	if second.Status != StatusOK {
-		t.Fatalf("second status = %q, want ok: the failure should not have been cached", second.Status)
+		t.Fatalf("second status = %q, want ok", second.Status)
 	}
 }
 
-func TestSuccessfulResultIsCached(t *testing.T) {
+func TestSuccessfulResultIsNotCached(t *testing.T) {
 	var calls atomic.Int32
 
 	set := harness(t, func(writer http.ResponseWriter, _ *http.Request) {
@@ -162,8 +162,8 @@ func TestSuccessfulResultIsCached(t *testing.T) {
 		}
 	}
 
-	if got := calls.Load(); got != 1 {
-		t.Fatalf("hit the upstream %d times, want 1", got)
+	if got := calls.Load(); got != 3 {
+		t.Fatalf("hit the upstream %d times, want 3", got)
 	}
 }
 

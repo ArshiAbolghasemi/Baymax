@@ -34,16 +34,11 @@ func harness(t *testing.T, upstream http.HandlerFunc) *Set {
 		MaxResults:             5,
 		MaxSummaryChars:        1600,
 		MaxLabelSectionChars:   1800,
-		MaxCacheEntries:        64,
 		HTTPTimeout:            5 * time.Second,
 		HTTPMaxRetries:         0,
 		RetryMultiplier:        time.Millisecond,
 		RetryMaxWait:           2 * time.Millisecond,
 		TransientStatus:        []int{http.StatusServiceUnavailable},
-		HealthInfoTTL:          time.Minute,
-		GeneticsTTL:            time.Minute,
-		DrugLabelTTL:           time.Minute,
-		DrugSafetyTTL:          time.Minute,
 		FAERSDisclaimer:        "reports are not incidence",
 	}
 

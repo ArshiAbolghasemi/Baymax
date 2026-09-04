@@ -34,24 +34,12 @@ var (
 		Name: "upstream_response_time",
 		Help: "Time spent on an outbound request to a medical source in seconds.",
 	}, []string{"status", "source"})
-
-	// toolCacheEvents shows whether the TTL cache is earning its place.
-	toolCacheEvents = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "tool_cache_events_total",
-		Help: "Cache hits and misses per tool.",
-	}, []string{"event", "name"})
 )
 
 // Status labels for an observed call.
 const (
 	StatusSuccess = "success"
 	StatusFailed  = "failed"
-)
-
-// Cache event labels.
-const (
-	CacheHit  = "hit"
-	CacheMiss = "miss"
 )
 
 // ObserveToolCall records the outcome and duration of a single tool call.
@@ -64,11 +52,6 @@ func ObserveToolCall(name, status string, duration time.Duration) {
 func ObserveUpstream(source, status string, duration time.Duration) {
 	upstreamRequestRate.WithLabelValues(status, source).Inc()
 	upstreamResponseTime.WithLabelValues(status, source).Observe(duration.Seconds())
-}
-
-// ObserveCache records a cache hit or miss for a tool.
-func ObserveCache(name, event string) {
-	toolCacheEvents.WithLabelValues(event, name).Inc()
 }
 
 // Handler serves the metrics and liveness endpoints.

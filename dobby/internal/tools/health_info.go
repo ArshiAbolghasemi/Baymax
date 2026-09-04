@@ -36,12 +36,11 @@ type HealthInfoResult struct {
 func (s *Set) searchHealthInfo() Tool {
 	spec := searchSpec{
 		toolName:  healthInfoToolName,
-		ttl:       config.Conf.HealthInfoTTL,
 		source:    medline.SourceHealth,
 		sourceURL: medline.URLHealth,
 	}
 
-	return newSearchTool(s.cache, spec, healthInfoDescription,
+	return newSearchTool(spec, healthInfoDescription,
 		"Disease, symptom, or health-topic query.",
 		s.healthTopics,
 		func(query string, meta Meta) *HealthInfoResult {

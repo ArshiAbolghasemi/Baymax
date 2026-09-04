@@ -26,7 +26,7 @@ cmd/dobby/main.go               the binary: one call into internal/dobby
 internal/dobby                  process lifecycle: signals, App, metrics server
 internal/config                 the whole configuration, in one global Conf
 internal/logging                zap logger, tee'd to a JSON file and the console
-internal/metrics                tool_call_* / upstream_* / tool_cache_* series
+internal/metrics                tool_call_* / upstream_* series
 internal/mcpserver              the MCP server, its transport and middleware
 internal/httpx                  outbound HTTP: timeouts and bounded retries
 internal/tools                  one file per tool, plus the shared registry
@@ -77,7 +77,7 @@ curl -s localhost:8080/mcp \
        "params":{"name":"search_drug_safety",
                  "arguments":{"drug_name":"ibuprofen","limit":3}}}'
 
-curl -s localhost:2112/metrics | grep -E 'tool_call|upstream_|tool_cache'
+curl -s localhost:2112/metrics | grep -E 'tool_call|upstream_'
 curl -s localhost:2112/healthz
 ```
 
@@ -115,10 +115,6 @@ handler, because a client is free to ignore a schema.
 **Everything is bounded.** Summaries, label sections, result counts and response
 bodies all have caps, so a verbose upstream document cannot consume a client's
 context window.
-
-**Cached values are stored as JSON**, so one caller cannot mutate another's
-result through a shared slice. Failures are never cached: one blip must not
-poison a key for the length of its TTL.
 
 **Implausible upstream data is dropped, not corrected.** FAERS contains
 transcription errors — reports dated in the year 3004 are really in the
