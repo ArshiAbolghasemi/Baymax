@@ -10,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hiro.chat import repository as repo
 from hiro.chat.agent.events import AgentEvent, TextDelta
 from hiro.chat.agent.graph import stream_answer
-from hiro.chat.schemas import ChatCompletionRequest
-from hiro.chat.session_resolution import ResolvedSession, resolve_session
+from hiro.chat.models import Session
+from hiro.chat.schemas import ChatCompletionRequest, SessionCreate
+from hiro.chat.session_resolution import derive_user_uid, resolve_session_uid
 from hiro.common.logging import get_logger
 from hiro.db.session import async_session_scope
 
@@ -21,11 +22,27 @@ MAX_MESSAGE_CHARS = 32_000
 
 
 class InvalidConversationError(ValueError):
-    """The request has no usable user turn."""
+    """The request has no usable user turn, or names no conversation."""
+
+
+class UnknownSessionError(LookupError):
+    """The named conversation does not exist. Open one with POST /v1/sessions."""
 
 
 class SessionOwnershipError(PermissionError):
     """An explicit conversation belongs to a different user identity."""
+
+
+async def create_session(session: AsyncSession, payload: SessionCreate) -> Session:
+    """Open a conversation. The only place a session row is ever created."""
+    row = await repo.create_session(session, derive_user_uid(payload.user))
+    logger.info(
+        "chat session created session_uid=%s user_uid=%s identified=%s",
+        row.session_uid,
+        row.user_uid,
+        bool(payload.user),
+    )
+    return row
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +59,11 @@ async def store_user_message(
     *,
     header_session_uid: uuid.UUID | None,
 ) -> PreparedTurn:
-    """Resolve/create the conversation and persist only its newest user turn.
+    """Persist the newest user turn of an existing conversation.
+
+    The conversation must already exist: this never creates one, so a client
+    that forgets to open a session is told so rather than quietly starting a
+    fresh conversation on every turn.
 
     A locked existing session makes the regenerate check and insert one
     transaction. If the last stored row is the same unanswered user turn, the
@@ -57,53 +78,48 @@ async def store_user_message(
         )
 
     question = user_messages[-1]
-    resolved: ResolvedSession = resolve_session(
-        payload,
-        header_session_uid=header_session_uid,
-        first_user_message=user_messages[0],
-    )
-    row = await repo.get_session_for_update(session, resolved.session_uid)
+    session_uid = resolve_session_uid(payload, header_session_uid=header_session_uid)
+    if session_uid is None:
+        raise InvalidConversationError(
+            "no conversation named; open one with POST /v1/sessions and send it "
+            "as X-Session-UID or session_uid"
+        )
+
+    row = await repo.get_session_for_update(session, session_uid)
     if row is None:
-        row = await repo.create_session(
-            session,
-            resolved.user_uid,
-            session_uid=resolved.session_uid,
-        )
-        logger.info(
-            "chat session created session_uid=%s user_uid=%s resolution=%s",
-            resolved.session_uid,
-            resolved.user_uid,
-            resolved.source,
-        )
-    elif row.user_uid != resolved.user_uid:
+        logger.warning("chat session not found session_uid=%s", session_uid)
+        raise UnknownSessionError(f"session {session_uid} does not exist")
+
+    # Ownership is only checked when the client says who it is; a session
+    # opened for a named user is not readable by another named user.
+    if payload.user and row.user_uid != derive_user_uid(payload.user):
         logger.warning(
-            "chat session ownership mismatch session_uid=%s resolved_user_uid=%s",
-            resolved.session_uid,
-            resolved.user_uid,
+            "chat session ownership mismatch session_uid=%s",
+            session_uid,
         )
         raise SessionOwnershipError("session_uid belongs to a different user")
 
-    latest = await repo.get_latest_message(session, resolved.session_uid)
+    latest = await repo.get_latest_message(session, session_uid)
     duplicate_unanswered_turn = bool(
         latest is not None and latest.role == "user" and latest.content == question
     )
     if duplicate_unanswered_turn:
         logger.info(
             "duplicate unanswered user turn skipped session_uid=%s question_chars=%d",
-            resolved.session_uid,
+            session_uid,
             len(question),
         )
     else:
-        await repo.add_message(session, resolved.session_uid, "user", question)
+        await repo.add_message(session, session_uid, "user", question)
         logger.info(
             "user turn stored session_uid=%s question_chars=%d",
-            resolved.session_uid,
+            session_uid,
             len(question),
         )
 
     return PreparedTurn(
-        session_uid=resolved.session_uid,
-        user_uid=resolved.user_uid,
+        session_uid=session_uid,
+        user_uid=row.user_uid,
         question=question,
         user_message_stored=not duplicate_unanswered_turn,
     )

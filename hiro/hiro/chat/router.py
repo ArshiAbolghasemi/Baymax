@@ -19,6 +19,8 @@ from hiro.chat.schemas import (
     CompletionChoice,
     ModelInfo,
     ModelList,
+    SessionCreate,
+    SessionRead,
 )
 from hiro.common.logging import get_logger
 from hiro.config import get_config
@@ -27,6 +29,15 @@ from hiro.db.dependencies import AsyncSessionDep
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/v1", tags=["chat"])
+
+
+def _error(code: str, message: str) -> dict[str, str]:
+    """A machine-readable detail, because two different 404s live on this router.
+
+    An unknown model and a stale session both answer 404; a client that must
+    recover from one and not the other needs more than the status.
+    """
+    return {"code": code, "message": message}
 
 
 def _completion_id() -> str:
@@ -167,6 +178,29 @@ async def _completion_events(
         yield _sse("[DONE]")
 
 
+@router.post(
+    "/sessions",
+    response_model=SessionRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Open a conversation",
+    response_description="The new conversation. Send its uid with every completion.",
+)
+async def create_session(payload: SessionCreate, session: AsyncSessionDep) -> SessionRead:
+    """Open a conversation, before asking anything.
+
+    Completions never create one: they name this uid in `X-Session-UID` (or
+    `session_uid`), and the turns of that conversation are what the agent
+    replays as history. Call this once per conversation, not once per message.
+    """
+    row = await service.create_session(session, payload)
+    await session.commit()
+    return SessionRead(
+        session_uid=row.session_uid,
+        user_uid=row.user_uid,
+        created_at=row.created_at,
+    )
+
+
 @router.get("/models", response_model=ModelList, summary="List available agent models")
 async def list_models() -> ModelList:
     model = get_config().chat.agent_model_name
@@ -180,8 +214,9 @@ async def list_models() -> ModelList:
     summary="Create an agent chat completion",
     description=(
         "OpenAI-compatible chat completions endpoint. Set stream=true for SSE. "
-        "Conversation identity resolves from X-Session-UID, body session_uid, "
-        "body chat_id, then a deterministic user/first-message fallback. "
+        "The conversation must already exist: open it with POST /v1/sessions "
+        "and name it in X-Session-UID or session_uid. An unknown one is a 404 "
+        "with code session_not_found. "
         "Only the model advertised by GET /v1/models is served; any other is "
         "refused with 404. The agent supplies its own prompt, so system and "
         "assistant messages in the request are ignored."
@@ -216,9 +251,10 @@ async def create_chat_completion(
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
+            detail=_error(
+                "model_not_found",
                 f"The model {payload.model!r} does not exist. "
-                f"This endpoint serves {model!r} only; see GET /v1/models."
+                f"This endpoint serves {model!r} only; see GET /v1/models.",
             ),
         )
 
@@ -244,9 +280,20 @@ async def create_chat_completion(
         # new user turn before returning a stream or invoking the graph.
         await session.commit()
     except service.InvalidConversationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_error("invalid_request", str(exc)),
+        ) from exc
+    except service.UnknownSessionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_error("session_not_found", str(exc)),
+        ) from exc
     except service.SessionOwnershipError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_error("session_owned_by_another_user", str(exc)),
+        ) from exc
 
     response_headers = {"X-Session-UID": str(turn.session_uid)}
     created = int(time.time())

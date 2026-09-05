@@ -1,6 +1,7 @@
 """OpenAI-compatible request and response contracts for the chat agent."""
 
 import uuid
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -33,8 +34,33 @@ class ChatMessage(BaseModel):
         return "\n".join(parts).strip()
 
 
+class SessionCreate(BaseModel):
+    """Open a conversation. Everything about it is optional."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"user": "arshia@example.com"}]},
+    )
+
+    user: str | None = Field(
+        default=None,
+        max_length=512,
+        description=(
+            "Client-side identity for the person. A uuid is used as-is; any "
+            "other string is hashed into a stable uuid. Omitted means anonymous."
+        ),
+    )
+
+
+class SessionRead(BaseModel):
+    """A conversation that now exists."""
+
+    session_uid: uuid.UUID
+    user_uid: uuid.UUID
+    created_at: datetime
+
+
 class ChatCompletionRequest(BaseModel):
-    """OpenAI chat-completions input plus optional conversation identifiers."""
+    """OpenAI chat-completions input, for a conversation that already exists."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -42,8 +68,10 @@ class ChatCompletionRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=1_024)
     stream: bool = False
     user: str | None = Field(default=None, max_length=512)
-    session_uid: uuid.UUID | None = None
-    chat_id: str | None = Field(default=None, max_length=512)
+    session_uid: uuid.UUID | None = Field(
+        default=None,
+        description="The conversation from POST /v1/sessions. X-Session-UID wins over this.",
+    )
 
     def user_messages(self) -> list[str]:
         return [

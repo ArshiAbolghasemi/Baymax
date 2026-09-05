@@ -104,18 +104,34 @@ data — so review the generated revision before committing it.
 
 Interactive docs are at http://localhost:8080/docs, with pre-filled examples.
 
-**Chat.** OpenAI-compatible, so any OpenAI client works by pointing its base
-url here. The conversation is identified by `X-Session-UID`, then body
-`session_uid` / `chat_id`, then a deterministic fallback derived from the user
-and the first message.
+**Chat.** Two calls: open a conversation once, then ask as often as you like.
+Completions never create a conversation, so the uid must come from
+`POST /v1/sessions`.
 
 ```bash
+SESSION=$(curl -s -X POST localhost:8080/v1/sessions \
+  -H 'Content-Type: application/json' -d '{}' | jq -r .session_uid)
+
 curl -s localhost:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -H 'X-Session-UID: 4a1c0d7e-2b3f-4c5d-8e9f-0a1b2c3d4e5f' \
+  -H "X-Session-UID: $SESSION" \
   -d '{"model":"baymax","stream":true,
        "messages":[{"role":"user","content":"What are the side effects of ibuprofen?"}]}'
 ```
+
+`POST /v1/sessions` takes an optional `user` — a uuid is kept as-is, any other
+string is hashed into a stable one, and omitting it means anonymous. The
+conversation uid may travel as `X-Session-UID` (which wins) or as body
+`session_uid`.
+
+Errors carry a code, because two different things answer 404:
+
+| | | |
+| --- | --- | --- |
+| `400` | `invalid_request` | no conversation named, or no usable user message |
+| `404` | `session_not_found` | that conversation does not exist — open a new one |
+| `404` | `model_not_found` | this endpoint serves one model; see `GET /v1/models` |
+| `409` | `session_owned_by_another_user` | the `user` sent does not own that conversation |
 
 For a terminal instead of curl, use `bashmax`: `cd ../bashmax &&
 ./entrypoints/chat.sh`.
@@ -172,6 +188,13 @@ standard fields, tool results under a `tool_results` key, since OpenAI has no
 shape for a result the server produced itself. A text-only client such as
 `bashmax` reads `delta.content` and ignores the rest; `eve` renders the calls.
 Only text is persisted as the reply.
+
+**A conversation is opened explicitly.** `POST /v1/sessions` is the only place
+a session row is created; `service.store_user_message` looks one up and refuses
+when it is missing. It used to derive a uid from the user plus the first
+message, which meant a typo silently started a second conversation and two
+people asking the same first question shared one. Clients open a session at
+start-up and keep it; on `session_not_found` they open a fresh one.
 
 **One agent, one model id.** `POST /v1/chat/completions` serves only the model
 `GET /v1/models` advertises (`CHAT_AGENT_MODEL_NAME`, default `baymax`) and

@@ -1,8 +1,13 @@
-"""Stable conversation and user identity resolution for stateless clients."""
+"""Which conversation a request is for, and whose it is.
+
+Nothing here invents a conversation. A session is created once, explicitly,
+through ``POST /v1/sessions``; a completion names one that already exists.
+Deriving a session uid from the message text instead — which this module used
+to do — meant a typo silently started a second conversation, and two people
+asking the same first question shared one.
+"""
 
 import uuid
-from dataclasses import dataclass
-from typing import Literal
 
 from hiro.chat.schemas import ChatCompletionRequest
 from hiro.common.logging import get_logger
@@ -10,53 +15,41 @@ from hiro.config import get_config
 
 logger = get_logger(__name__)
 
-ResolutionSource = Literal["header", "body", "chat_id", "derived"]
+ANONYMOUS = "user:anonymous"
 
 
-@dataclass(frozen=True, slots=True)
-class ResolvedSession:
-    session_uid: uuid.UUID
-    user_uid: uuid.UUID
-    source: ResolutionSource
+def derive_user_uid(user: str | None) -> uuid.UUID:
+    """Turn a client's identity string into a stable uuid.
+
+    A uuid is taken as-is so a caller that already has one keeps it; anything
+    else is hashed under the configured namespace. No identity at all is a
+    single shared anonymous user, which is what a client with no login has.
+    """
+    namespace = get_config().chat.session_namespace
+    if not user:
+        return uuid.uuid5(namespace, ANONYMOUS)
+    try:
+        return uuid.UUID(user)
+    except ValueError:
+        return uuid.uuid5(namespace, f"user:{user}")
 
 
-def _user_uid(user: str | None, namespace: uuid.UUID) -> uuid.UUID:
-    if user:
-        try:
-            return uuid.UUID(user)
-        except ValueError:
-            return uuid.uuid5(namespace, f"user:{user}")
-    return uuid.uuid5(namespace, "user:anonymous")
-
-
-def resolve_session(
+def resolve_session_uid(
     payload: ChatCompletionRequest,
     *,
     header_session_uid: uuid.UUID | None,
-    first_user_message: str,
-) -> ResolvedSession:
-    """Resolve header → body → client chat id → deterministic fallback."""
-    config = get_config().chat
-    namespace = config.session_namespace
-    user_uid = _user_uid(payload.user, namespace)
+) -> uuid.UUID | None:
+    """The conversation this request names: header first, then body.
 
-    if header_session_uid is not None:
-        session_uid = header_session_uid
-        source: ResolutionSource = "header"
-    elif payload.session_uid is not None:
-        session_uid = payload.session_uid
-        source = "body"
-    elif payload.chat_id:
-        session_uid = uuid.uuid5(namespace, f"chat:{user_uid}:{payload.chat_id}")
-        source = "chat_id"
-    else:
-        session_uid = uuid.uuid5(namespace, f"conversation:{user_uid}:{first_user_message}")
-        source = "derived"
-
-    logger.info(
-        "chat session resolved session_uid=%s user_uid=%s source=%s",
+    ``None`` means the client named none, which is a client error rather than
+    an invitation to make one up.
+    """
+    session_uid = header_session_uid or payload.session_uid
+    if session_uid is None:
+        return None
+    logger.debug(
+        "chat session named session_uid=%s source=%s",
         session_uid,
-        user_uid,
-        source,
+        "header" if header_session_uid else "body",
     )
-    return ResolvedSession(session_uid=session_uid, user_uid=user_uid, source=source)
+    return session_uid
