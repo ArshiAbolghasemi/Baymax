@@ -6,6 +6,7 @@ is bookkeeping and is dropped here, so the UI never has to know the envelope.
 """
 
 import json
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -48,6 +49,24 @@ class ChatClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
+    async def open_session(self) -> uuid.UUID:
+        """Open a conversation and return its uid.
+
+        Called once per conversation, before the first question: completions
+        name an existing conversation and never create one.
+        """
+        body: dict[str, Any] = {}
+        if self._settings.user:
+            body["user"] = self._settings.user
+        try:
+            response = await self._client.post(self._settings.sessions_url, json=body)
+            if response.status_code >= 400:
+                raise ChatError(await _error_text(response))
+        except httpx.HTTPError as exc:
+            msg = f"could not open a session: {exc}"
+            raise ChatError(msg) from exc
+        return uuid.UUID(response.json()["session_uid"])
+
     async def list_models(self) -> list[str]:
         try:
             response = await self._client.get(self._settings.models_url)
@@ -64,6 +83,10 @@ class ChatClient:
         the mid-stream error frame the server emits when generation fails after
         the response has already begun.
         """
+        if self._settings.session_uid is None:
+            msg = "no session open — this is a bug in the client"
+            raise ChatError(msg)
+
         body = {
             "model": self._settings.model,
             "messages": messages,

@@ -20,11 +20,16 @@ class Settings:
     api_key: str = field(default_factory=lambda: os.environ.get("BAYMAX_API_KEY", "not-needed"))
     model: str = field(default_factory=lambda: os.environ.get("BAYMAX_MODEL", DEFAULT_MODEL))
     timeout: float = 300.0
-    #: Sent on every request so the server ties the turns into one conversation
-    #: and persists them together.
-    session_uid: uuid.UUID = field(default_factory=uuid.uuid4)
+    #: The conversation, as opened by POST /v1/sessions. None until then: the
+    #: server no longer accepts a uid it has never heard of, so inventing one
+    #: here would only produce a 404 on the first question.
+    session_uid: uuid.UUID | None = None
     user: str | None = None
     markdown: bool = True
+
+    @property
+    def sessions_url(self) -> str:
+        return f"{self.base_url.rstrip('/')}/sessions"
 
     @property
     def completions_url(self) -> str:

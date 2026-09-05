@@ -83,9 +83,13 @@ async def _handle_command(
     if name == "/help":
         render.help_panel()
     elif name == "/new":
-        conversation.reset()
-        settings.session_uid = uuid.uuid4()
-        render.info(f"new session {settings.session_uid}")
+        try:
+            settings.session_uid = await client.open_session()
+        except ChatError as exc:
+            render.error(str(exc))
+        else:
+            conversation.reset()
+            render.info(f"new session {settings.session_uid}")
     elif name == "/clear":
         render.console.clear()
     elif name == "/session":
@@ -108,6 +112,17 @@ async def _handle_command(
 async def run(settings: Settings) -> int:
     conversation = Conversation()
     client = ChatClient(settings)
+
+    # Completions name a conversation, they never create one, so the client
+    # opens one before it can ask anything. --session reuses an existing one.
+    if settings.session_uid is None:
+        try:
+            settings.session_uid = await client.open_session()
+        except ChatError as exc:
+            render.error(str(exc))
+            await client.aclose()
+            return 1
+
     render.banner(settings)
 
     try:
