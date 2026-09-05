@@ -1,6 +1,7 @@
 /** Where the agent lives. Read once, at module load. */
 
-const env = import.meta.env;
+// `?? {}` so the module also loads outside Vite — the check script runs it in Node.
+const env = import.meta.env ?? {};
 
 export const config = {
   /** hiro's OpenAI-compatible base url, including /v1. */

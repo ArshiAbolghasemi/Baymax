@@ -1,9 +1,9 @@
 /** The HTTP call and its SSE framing. Knows nothing about what the events mean. */
 
-import { config } from "../config";
-import { type AgentEvent, decodeChunk } from "./events";
-import type { WireMessage } from "./messages";
-import { sessionUid } from "./session";
+import { config } from "../config.ts";
+import { type AgentEvent, decodeChunk } from "./events.ts";
+import type { WireMessage } from "./messages.ts";
+import { forgetSession, sessionUid } from "./session.ts";
 
 const DONE = "[DONE]";
 
@@ -24,20 +24,38 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
   if (buffer) yield buffer;
 }
 
-export async function* streamAgent(
-  messages: WireMessage[],
-  abortSignal: AbortSignal,
-): AsyncGenerator<AgentEvent> {
-  const response = await fetch(`${config.baseUrl}/chat/completions`, {
+async function post(messages: WireMessage[], abortSignal: AbortSignal): Promise<Response> {
+  return fetch(`${config.baseUrl}/chat/completions`, {
     method: "POST",
     signal: abortSignal,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.apiKey}`,
-      "X-Session-UID": sessionUid(),
+      "X-Session-UID": await sessionUid(),
     },
     body: JSON.stringify({ model: config.model, messages, stream: true }),
   });
+}
+
+/** Did hiro reject this because the conversation is gone? A restarted or wiped
+ *  server leaves a remembered uid pointing at nothing; every other 404 (an
+ *  unknown model, say) is a real error and must not be retried. */
+async function sessionExpired(response: Response): Promise<boolean> {
+  if (response.status !== 404) return false;
+  const body = (await response.clone().json()) as { detail?: { code?: string } };
+  return body.detail?.code === "session_not_found";
+}
+
+export async function* streamAgent(
+  messages: WireMessage[],
+  abortSignal: AbortSignal,
+): AsyncGenerator<AgentEvent> {
+  let response = await post(messages, abortSignal);
+
+  if (await sessionExpired(response)) {
+    forgetSession();
+    response = await post(messages, abortSignal);
+  }
 
   if (!response.ok || !response.body) {
     const detail = await response.text().catch(() => "");

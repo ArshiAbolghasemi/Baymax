@@ -10,7 +10,7 @@ import type { ToolCallMessagePart } from "@assistant-ui/react";
 /** The JSON shape assistant-ui accepts for tool arguments. */
 type Args = ToolCallMessagePart["args"];
 
-import type { AgentEvent } from "../api/events";
+import type { AgentEvent } from "../api/events.ts";
 
 type Part = { type: "text"; text: string } | ToolCallMessagePart;
 

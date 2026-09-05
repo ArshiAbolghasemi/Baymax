@@ -1,7 +1,7 @@
 /** The conversation: messages, their parts, and the composer. */
 
 import { ComposerPrimitive, MessagePrimitive, ThreadPrimitive } from "@assistant-ui/react";
-import { ToolCall } from "./ToolCall";
+import { ToolCall } from "./ToolCall.tsx";
 
 const UserMessage = () => (
   <MessagePrimitive.Root className="message message-user">

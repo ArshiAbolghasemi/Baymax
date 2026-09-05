@@ -43,7 +43,7 @@ Each module does one thing, and they only depend downwards:
 | `api/events.ts` | hiro's wire format → typed `AgentEvent`s |
 | `api/stream.ts` | the POST and its SSE framing; knows nothing about meaning |
 | `api/messages.ts` | assistant-ui messages → the wire shape hiro expects |
-| `api/session.ts` | one conversation id per tab |
+| `api/session.ts` | opens the conversation, and remembers it for this tab |
 | `runtime/parts.ts` | folds events into assistant-ui message parts |
 | `runtime/adapter.ts` | the one place assistant-ui and hiro meet |
 | `components/ToolCall.tsx` | how a tool call looks, running and finished |
@@ -67,8 +67,13 @@ is shown verbatim rather than dropped — the MCP server returns
 `status: ok | no_results | error`, and an `error` result is still information
 the reader wants.
 
-**The session lives in `sessionStorage`.** hiro keys history off
-`X-Session-UID`; a reload keeps the thread, a new tab starts a fresh one.
+**The conversation is opened, not invented.** hiro's completions name an
+existing conversation and never create one, so `api/session.ts` calls
+`POST /v1/sessions` before the first question and keeps the uid in
+`sessionStorage`: a reload keeps the thread, a new tab starts a fresh one. If
+the server has since forgotten it — a restart, a wiped database — the chat call
+comes back `404 session_not_found`, and `api/stream.ts` opens a new one and
+retries once. Every other 404 is a real error and is surfaced.
 
 **Only `baymax` is served.** hiro refuses any other model with a 404, so
 `VITE_HIRO_MODEL` exists to follow a renamed `CHAT_AGENT_MODEL_NAME`, not to

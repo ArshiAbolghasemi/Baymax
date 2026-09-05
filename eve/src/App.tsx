@@ -1,6 +1,6 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
-import { Thread } from "./components/Thread";
-import { hiroAdapter } from "./runtime/adapter";
+import { Thread } from "./components/Thread.tsx";
+import { hiroAdapter } from "./runtime/adapter.ts";
 
 export const App = () => {
   const runtime = useLocalRuntime(hiroAdapter);
