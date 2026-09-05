@@ -16,7 +16,7 @@ in the path.
 | [`hiro`](hiro/README.md) | Python | The service. The knowledge base, the agentic workflow that answers a question, and the OpenAI-compatible HTTP API both are exposed through, plus a Celery worker for indexing. |
 | [`dobby`](dobby/README.md) | Go | The MCP server. Owns every external medical tool — their names, limits and disclaimers — and exposes them to any MCP client, hiro's agent included. |
 | [`eve`](eve/README.md) | TypeScript | The web client. An assistant-ui chat that renders each tool call — name, arguments, result — as the answer streams around it. |
-| [`bashmax`](bashmax) | Python | The terminal client. A streaming chat UI against hiro's API and nothing else: no database, no model, no credentials. |
+| [`bashmax`](bashmax/README.md) | Python | The terminal client. A streaming chat UI against hiro's API and nothing else: no database, no model, no credentials. |
 | [`phoenix`](phoenix/README.md) | Compose | [Arize Phoenix](https://github.com/Arize-ai/phoenix), the store of record for every prompt hiro sends. The wording lives there, not in the code, and is edited without a deploy. |
 | [`infra`](infra/README.md) | Compose | Everything the above run on: Postgres, Redis, Qdrant, and vLLM serving MedGemma-4B and bge-m3. |
 
