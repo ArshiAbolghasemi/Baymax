@@ -3,6 +3,7 @@
 from hiro.chat import prompts
 from hiro.chat.agent.models import get_guardrail_model
 from hiro.chat.agent.state import AgentState
+from hiro.chat.tracing import trace
 from hiro.common.logging import get_logger, log_duration
 from hiro.config import get_config
 
@@ -11,6 +12,11 @@ logger = get_logger(__name__)
 ALLOWED = "1"
 
 
+@trace(
+    "guardrail decision",
+    input=lambda state: state["question"],
+    output=lambda update: "allowed" if update.get("allowed") else "blocked",
+)
 async def guardrail(state: AgentState) -> AgentState:
     """Classify the question as medical (1) or not (0).
 

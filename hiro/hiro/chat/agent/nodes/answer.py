@@ -5,6 +5,7 @@ from langchain_core.messages import BaseMessage
 from hiro.chat import prompts
 from hiro.chat.agent.models import get_answer_model, get_answer_tool_schemas
 from hiro.chat.agent.state import AgentState
+from hiro.chat.tracing import trace
 from hiro.common.logging import get_logger, log_duration
 from hiro.config import get_config
 
@@ -56,6 +57,29 @@ async def build_answer_messages(state: AgentState) -> list[BaseMessage]:
     )
 
 
+def _selected_tools(update: AgentState) -> list[str]:
+    """The tools this step asked for, in the order the model named them."""
+    messages = update.get("messages") or []
+    calls = getattr(messages[-1], "tool_calls", None) if messages else None
+    return [str(call.get("name", "unknown")) for call in (calls or [])]
+
+
+def _step_result(update: AgentState) -> str:
+    """What this step decided: the tools it chose, or the words it produced."""
+    messages = update.get("messages") or []
+    if not messages:
+        return ""
+    if tools := _selected_tools(update):
+        return "tools: " + ", ".join(tools)
+    return str(getattr(messages[-1], "content", ""))
+
+
+@trace(
+    "answer step",
+    input=lambda state: state["question"],
+    output=_step_result,
+    records=lambda update: {"llm.tools.selected": _selected_tools(update)},
+)
 async def answer(state: AgentState) -> AgentState:
     """Run one model step in the ReAct loop."""
     previous_messages = state.get("messages") or []

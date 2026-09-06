@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hiro.chat import repository as repo
-from hiro.chat.agent.events import AgentEvent, TextDelta
+from hiro.chat.agent.events import AgentEvent, TextDelta, ToolCall
 from hiro.chat.agent.graph import stream_answer
 from hiro.chat.models import Session
 from hiro.chat.schemas import ChatCompletionRequest, SessionCreate
 from hiro.chat.session_resolution import derive_user_uid, resolve_session_uid
+from hiro.chat.tracing import trace
 from hiro.common.logging import get_logger
 from hiro.db.session import async_session_scope
 
@@ -135,6 +136,22 @@ async def _store_assistant_message(session_uid: uuid.UUID, content: str) -> None
     )
 
 
+def _tools_selected(events: list[AgentEvent]) -> list[str]:
+    """Every tool the model chose during a turn, in the order it chose them."""
+    return [event.name for event in events if isinstance(event, ToolCall)]
+
+
+@trace(
+    "chat turn",
+    kind="agent",
+    conversation=lambda turn: (turn.session_uid, turn.user_uid),
+    input=lambda turn: turn.question,
+    output=lambda events: "".join(e.text for e in events if isinstance(e, TextDelta)),
+    records=lambda events: {"llm.tools.selected": _tools_selected(events)},
+    # The HTTP span is the trace root, and Phoenix's session list reads the
+    # root: without this a session shows a column of blanks.
+    propagate=True,
+)
 async def stream_reply(turn: PreparedTurn) -> AsyncIterator[AgentEvent]:
     """Run the shared agent graph, stream its events, then persist the reply.
 

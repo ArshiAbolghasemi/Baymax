@@ -15,11 +15,18 @@ from functools import lru_cache
 
 from hiro.chat.agent.nodes.common import vector_search
 from hiro.chat.agent.state import AgentState
+from hiro.chat.tracing import trace
 from hiro.clients.vector_store import VectorStore, get_vector_store
 from hiro.common.logging import get_logger, log_duration
 from hiro.config import get_config
 
 logger = get_logger(__name__)
+
+
+def _texts(hits: list[dict[str, object]], field: str) -> list[str]:
+    """The payload field of each hit, blanks dropped."""
+    values = [str(hit.get(field, "")).strip() for hit in hits]
+    return [value for value in values if value]
 
 
 @lru_cache(maxsize=1)
@@ -39,6 +46,12 @@ def get_instruction_store() -> VectorStore:
     return store
 
 
+@trace(
+    "retrieve instructions",
+    kind="retriever",
+    input=lambda state: state["question"],
+    output=lambda update: update["instructions"],
+)
 async def retrieve_instructions(state: AgentState) -> AgentState:
     """Retrieve the instructions that apply to this question."""
     config = get_config().chat
@@ -53,13 +66,13 @@ async def retrieve_instructions(state: AgentState) -> AgentState:
             hits = await asyncio.to_thread(
                 vector_search, get_instruction_store(), question, config.instruction_top_k
             )
+            found = _texts(hits, config.instruction_payload_field)
     except Exception:
         logger.exception("instruction retrieval failed, continuing without instructions")
         return {"instructions": []}
 
     field = config.instruction_payload_field
-    instructions = [str(hit.get(field, "")).strip() for hit in hits]
-    instructions = [instruction for instruction in instructions if instruction]
+    instructions = found
     if hits and not instructions:
         logger.warning(
             "instruction points carry no %r payload field; set "

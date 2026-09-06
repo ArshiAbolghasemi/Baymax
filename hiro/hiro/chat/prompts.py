@@ -19,6 +19,7 @@ from functools import lru_cache
 from langchain_core.messages import BaseMessage, convert_to_messages
 from phoenix.client import AsyncClient
 
+from hiro.chat.tracing import trace
 from hiro.common.logging import get_logger
 from hiro.config import get_config
 
@@ -32,6 +33,11 @@ def get_client() -> AsyncClient:
     return AsyncClient(base_url=config.base_url, api_key=config.api_key or None)
 
 
+@trace(
+    lambda identifier, **_: f"prompt {identifier}",
+    attributes=lambda identifier, **_: {"prompt.identifier": identifier},
+    output=lambda messages: [f"{m.type}: {m.content}" for m in messages],
+)
 async def get_messages(identifier: str, **variables: str) -> list[BaseMessage]:
     """Fetch one prompt and render its variables.
 
