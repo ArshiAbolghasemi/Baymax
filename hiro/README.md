@@ -165,12 +165,26 @@ Runs are resumable: generated output is cached per topic and `state.jsonl`
 records what was posted, so an interrupted run neither regenerates nor
 duplicates. Delete those under `--data-dir` to force the work again.
 
-## Checks
+## Tests and checks
 
 ```bash
-uv run ruff check hiro scripts
-uv run ruff format --check hiro scripts
+uv run pytest                              # the whole suite, ~2s
+uv run pytest tests/test_service.py -v     # one file
+uv run ruff check hiro scripts tests
+uv run ruff format --check hiro scripts tests
 ```
+
+Nothing in the suite talks to Postgres, Qdrant, Phoenix, vLLM or dobby: the
+configuration in `tests/conftest.py` points at hosts that do not resolve, and
+every client is faked. That is deliberate — a test that quietly needs a running
+container is a test nobody runs.
+
+What is covered: configuration and its overrides, session and user identity,
+the request and response schemas, the service's rules about conversations,
+every HTTP route including the SSE frames and each error code, the workflow's
+routing and event extraction, each node with its model and stores faked, prompt
+fetching, tool discovery, the trace decorator, knowledge base ingestion, and
+the embedding and vector-store clients.
 
 ## Notes worth knowing
 

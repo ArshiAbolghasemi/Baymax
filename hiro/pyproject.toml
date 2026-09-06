@@ -28,6 +28,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
     "ruff==0.16.3",
 ]
 
@@ -58,3 +60,14 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 # FastAPI dependency injection relies on function calls in argument defaults.
 "hiro/knowledge_base/router.py" = ["B008"]
+
+[tool.pytest.ini_options]
+# Tests are unit tests: no Postgres, no Qdrant, no Phoenix, no vLLM. Anything
+# that would reach one of those is faked, so the suite runs anywhere.
+testpaths = ["hiro"]
+# The project is an application, not an installed package: hiro is imported
+# from this directory, the same way the entrypoints run it.
+pythonpath = ["."]
+asyncio_mode = "auto"
+addopts = "-q --strict-markers"
+filterwarnings = ["error::DeprecationWarning:hiro.*"]
