@@ -11,6 +11,7 @@ dependencies = [
     "dynaconf==3.3.5",
     "fastapi==0.141.1",
     "httpx==0.28.1",
+    "jupyter>=1.1.1",
     "langchain-core==1.5.4",
     "langchain-mcp-adapters==0.3.2",
     "langchain-openai==1.5.0",
@@ -31,6 +32,10 @@ dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
     "ruff==0.16.3",
+]
+notebook = [
+    "jupyter==1.1.1",
+    "pandas==3.0.6",
 ]
 
 # An application, not a library: the single top-level package ``hiro`` is imported
