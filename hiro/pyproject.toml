@@ -34,6 +34,7 @@ dev = [
     "ruff==0.16.3",
 ]
 notebook = [
+    "datasets>=5.0.1",
     "jupyter==1.1.1",
     "pandas==3.0.6",
 ]
@@ -65,6 +66,9 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 # FastAPI dependency injection relies on function calls in argument defaults.
 "hiro/knowledge_base/router.py" = ["B008"]
+# Persian prompts and prose are the point of these notebooks; the confusable-character
+# lints flag every Arabic letter and en dash in them.
+"notebooks/*.ipynb" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pytest.ini_options]
 # Tests are unit tests: no Postgres, no Qdrant, no Phoenix, no vLLM. Anything
